@@ -39,9 +39,9 @@
             },
             {
                 "hand": "High Card",
-                "condition": "highest card showing is A, K or Q",
+                "condition": "one of my two cards is A, K or Q",
                 "action": "play",
-                "name": "If the hand is High Card with A, K or Q high, play on"
+                "name": "If the hand is High Card and one of my two cards is A, K or Q, play on"
             }
         ]
     }

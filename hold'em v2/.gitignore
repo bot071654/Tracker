@@ -1,10 +1,17 @@
 .env
+*.env.local
 __pycache__/
 *.pyc
-logs/*.log
-logs/*.log.*
+
+# Diagnostic output, not source. These grow without limit while the tracker
+# runs: logs/ reached 362 MB and debug/ 141 MB on this machine. Both are
+# recreated automatically and neither belongs in the repository.
+logs/
+debug/
+
 data/*.xlsx
 .pytest_cache/
 config/window_state.json
 dist/
+.venv/
 .venv-mac/

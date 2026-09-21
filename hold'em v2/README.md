@@ -361,6 +361,40 @@ in:
 | `pair only on the board` | the dealer holds the identical pair — worth nothing |
 | `pair uses one of my cards` | a real pair |
 | `pocket pair` | both hole cards paired |
+| `the flop is paired` | two of the three flop cards share a rank |
+| `highest card showing is A, K or Q` | the top card of the hand, board included |
+| `one of my two cards is A, K or Q` | a big card you actually hold |
+
+**The last two are different questions.** An ace on the flop is the dealer's
+ace as well and plays the same for both seats, so a hand can be “A high” with
+nothing in it.
+
+**The shipped High Card rule asks the second one** — a big card among your own
+two. So does the Scenario Engine (`config/scenario_engine.json`,
+`high_card_source: "player"`), so the two halves of the window agree. Measured
+over 197 recorded hands, High Card hands with an A/K/Q in the hole won 39.1%
+(18 of 46); the ones where the big card was only on the board won 19.2%
+(10 of 52).
+
+Both conditions stay available in the rule builder, and
+`python tools/scenario_stats.py` scores both against your own recorded hands
+(`A/K/Q in hand` and `A/K/Q high`), so you can check the split on your data
+before changing the rule back.
+
+### A rule is only applied to cards the tracker has settled
+
+A flop deals in from the left, so for a poll or two the third box holds a card
+on its way past — read weakly, and read repeatedly. The card table shows that
+as `CONFIRMING`, and no rule is applied until all five decision cards are
+`CONFIRMED` or `HELD`. Until then the panel says what it is waiting for:
+
+```
+Reading the table
+(waiting for Flop Card 3)
+```
+
+This is the same gate the Scenario Engine has always used, so the two halves
+of the window can no longer answer from different cards.
 
 ### Test a rule before you trust it
 
@@ -626,6 +660,27 @@ Useful if you are debugging recognition.
 5. Rank and suit are matched separately against the templates, and the lower of
    the two scores becomes the card's confidence. Whichever candidate reading
    matches a real card best wins.
+6. Both halves must also have *beaten what they were being chosen between*. The
+   suit has to beat the other suit of its colour by `SUIT_MARGIN` (0.05) and
+   the rank has to beat the second-best rank by `RANK_MARGIN` (0.10). A nine
+   matching at 0.80 with the queen at 0.79 behind it has not been recognised
+   as anything, and saying so is different from saying the glyph matched
+   nothing — the card table reports it as `AMBIGUOUS`.
 
-Below `confidence_threshold` the card is reported as uncertain and the hand is
-not saved — the failure mode is a missing row, never a wrong one.
+Below `confidence_threshold`, or inside either margin, the card is reported as
+uncertain and the hand is not saved — the failure mode is a missing row, never
+a wrong one.
+
+### A card is held by the best look at it, not the most looks
+
+Every accepted reading goes into a tally for its slot and the slot shows
+whichever card has the most support. What a reading is worth to that tally is
+how far it cleared the threshold, not its whole confidence, because the deal
+guarantees a run of barely-readable readings before the real card arrives: a
+card sliding past the box read as a king of spades five times at 0.62–0.705,
+and the two of spades that was really there arrived at 0.957 and could not
+displace it for four more polls.
+
+Confirming a card needs either two readings with one above 0.75, or three with
+one above 0.72. Three weak readings used to be enough on their own, which is
+how a card that was never there came to be reported `CONFIRMED`.

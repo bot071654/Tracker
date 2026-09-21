@@ -961,7 +961,7 @@ class App:
         # Worked out by the tracker's Scenario Engine; shown, never recalculated.
         self.scenario_panel.show(payload.get("scenario"))
         self.scenario_panel.show_action(payload.get("action"))
-        self._show_scenario(cards)
+        self._show_scenario(cards, statuses)
 
     def _show_panels(self, panels):
         """The result panel's two rows and how they fit the table."""
@@ -1005,13 +1005,21 @@ class App:
         self.verification_var.set(text)
         self.verification_label.configure(foreground=colour)
 
-    def _show_scenario(self, cards):
+    def _show_scenario(self, cards, statuses=None):
         """What the user's own rules make of the table right now.
 
         This is a recommendation only - the app never touches the game.
+
+        `statuses` is each slot's recognition status, so no rule is ever
+        applied to a card the tracker has not settled. A card still arriving
+        on the flop reads as something else for a poll or two, and a rule
+        fired on it is a rule fired on the wrong card. The Scenario Engine
+        panel beside this one waits for the same five cards; until now this
+        one did not.
         """
         decision = scenario_rules.decide_from_cards(
-            self.scenarios, cards, self.last_record, self.history
+            self.scenarios, cards, self.last_record, self.history,
+            statuses=statuses or {},
         )
         features = decision["features"]
 
@@ -1024,6 +1032,15 @@ class App:
             self.show_detected(analysis.detect(features))
             return
         self.show_detected([])
+
+        # The flop is showing but a card is not settled: say which one, rather
+        # than a recommendation worked out from a card about to change.
+        waiting = decision["waiting_for"]
+        if waiting and all(cards.get(slot) for slot in scenario_rules.FLOP_SLOTS):
+            self.scenario_var.set(
+                "Reading the table\n(waiting for %s)"
+                % ", ".join(SLOT_LABELS[slot] for slot in waiting))
+            return
 
         if self.last_record:
             action = scenario_rules.ACTION_LABELS[decision["preround_action"]]
