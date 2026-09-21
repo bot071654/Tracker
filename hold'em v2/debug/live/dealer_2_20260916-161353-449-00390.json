@@ -1,0 +1,37 @@
+{
+  "slot": "dealer_2",
+  "status": "CONFIRMED",
+  "box": {
+    "left": 684,
+    "top": 212,
+    "width": 74,
+    "height": 86
+  },
+  "box_source": "this frame",
+  "present": true,
+  "card": "10D",
+  "confident": true,
+  "confidence": 0.9023,
+  "rank_confidence": 0.9023,
+  "suit_confidence": 0.9704,
+  "suit_margin": 0.2439,
+  "suit_scores": null,
+  "rank_scores": null,
+  "recognition_ms": 46.35,
+  "memory_card": "10D",
+  "shown_card": "10D",
+  "stamp": "20260916-161353-449-00390",
+  "generation": 223,
+  "state": "COMPLETE",
+  "timing_ms": {
+    "capture": 47.71,
+    "roi": 26.62,
+    "crop": 0.03,
+    "recognition": 329.4,
+    "memory": 0.44,
+    "gate": 0.01,
+    "panel": 121.07,
+    "diagnostics": 0.64,
+    "total": 527.21
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "slot": "dealer_1",
+  "status": "CONFIRMED",
+  "box": {
+    "left": 599,
+    "top": 207,
+    "width": 81,
+    "height": 92
+  },
+  "box_source": "calibrated",
+  "present": true,
+  "card": "QH",
+  "confident": true,
+  "confidence": 0.9512,
+  "rank_confidence": 0.9512,
+  "suit_confidence": 0.9783,
+  "suit_margin": 0.3078,
+  "suit_scores": null,
+  "rank_scores": null,
+  "recognition_ms": 60.56,
+  "memory_card": "QH",
+  "shown_card": "QH",
+  "stamp": "20260916-182832-252-00105",
+  "generation": 33,
+  "state": "COMPLETE",
+  "timing_ms": {
+    "capture": 59.8,
+    "roi": 4.41,
+    "crop": 0.05,
+    "recognition": 285.2,
+    "memory": 0.03,
+    "gate": 0.01,
+    "panel": 36.1,
+    "diagnostics": 0.11,
+    "total": 387.36
+  }
+}

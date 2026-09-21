@@ -1,0 +1,37 @@
+{
+  "slot": "dealer_1",
+  "status": "CONFIRMED",
+  "box": {
+    "left": 596,
+    "top": 214,
+    "width": 78,
+    "height": 88
+  },
+  "box_source": "this frame",
+  "present": true,
+  "card": "8H",
+  "confident": true,
+  "confidence": 0.8761,
+  "rank_confidence": 0.8761,
+  "suit_confidence": 0.9765,
+  "suit_margin": 0.3008,
+  "suit_scores": null,
+  "rank_scores": null,
+  "recognition_ms": 82.64,
+  "memory_card": "8H",
+  "shown_card": "8H",
+  "stamp": "20260917-121607-694-00248",
+  "generation": 164,
+  "state": "COMPLETE",
+  "timing_ms": {
+    "capture": 51.17,
+    "roi": 25.2,
+    "crop": 0.05,
+    "recognition": 490.66,
+    "memory": 0.04,
+    "gate": 0.01,
+    "panel": 54.51,
+    "diagnostics": 0.18,
+    "total": 622.87
+  }
+}

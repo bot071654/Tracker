@@ -1,0 +1,37 @@
+{
+  "slot": "dealer_2",
+  "status": "CONFIRMED",
+  "box": {
+    "left": 682,
+    "top": 214,
+    "width": 74,
+    "height": 88
+  },
+  "box_source": "this frame",
+  "present": true,
+  "card": "3C",
+  "confident": true,
+  "confidence": 0.8972,
+  "rank_confidence": 0.8972,
+  "suit_confidence": 0.963,
+  "suit_margin": 0.094,
+  "suit_scores": null,
+  "rank_scores": null,
+  "recognition_ms": 52.34,
+  "memory_card": "3C",
+  "shown_card": "3C",
+  "stamp": "20260916-161158-772-00347",
+  "generation": 195,
+  "state": "COMPLETE",
+  "timing_ms": {
+    "capture": 44.43,
+    "roi": 13.3,
+    "crop": 0.02,
+    "recognition": 230.1,
+    "memory": 0.03,
+    "gate": 0.0,
+    "panel": 71.98,
+    "diagnostics": 0.18,
+    "total": 360.1
+  }
+}

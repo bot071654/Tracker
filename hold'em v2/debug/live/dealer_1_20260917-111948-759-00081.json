@@ -1,0 +1,37 @@
+{
+  "slot": "dealer_1",
+  "status": "CONFIRMED",
+  "box": {
+    "left": 600,
+    "top": 216,
+    "width": 76,
+    "height": 86
+  },
+  "box_source": "this frame",
+  "present": true,
+  "card": "2S",
+  "confident": true,
+  "confidence": 0.9156,
+  "rank_confidence": 0.9156,
+  "suit_confidence": 0.9737,
+  "suit_margin": 0.0966,
+  "suit_scores": null,
+  "rank_scores": null,
+  "recognition_ms": 31.51,
+  "memory_card": "2S",
+  "shown_card": "2S",
+  "stamp": "20260917-111948-759-00081",
+  "generation": 28,
+  "state": "COMPLETE",
+  "timing_ms": {
+    "capture": 33.97,
+    "roi": 12.63,
+    "crop": 0.02,
+    "recognition": 332.52,
+    "memory": 0.04,
+    "gate": 0.01,
+    "panel": 35.73,
+    "diagnostics": 0.22,
+    "total": 415.18
+  }
+}

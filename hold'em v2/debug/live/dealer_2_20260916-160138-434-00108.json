@@ -1,0 +1,37 @@
+{
+  "slot": "dealer_2",
+  "status": "CONFIRMED",
+  "box": {
+    "left": 682,
+    "top": 216,
+    "width": 74,
+    "height": 88
+  },
+  "box_source": "this frame",
+  "present": true,
+  "card": "JD",
+  "confident": true,
+  "confidence": 0.9629,
+  "rank_confidence": 0.9629,
+  "suit_confidence": 0.976,
+  "suit_margin": 0.2654,
+  "suit_scores": null,
+  "rank_scores": null,
+  "recognition_ms": 14.64,
+  "memory_card": "JD",
+  "shown_card": "JD",
+  "stamp": "20260916-160138-434-00108",
+  "generation": 43,
+  "state": "COMPLETE",
+  "timing_ms": {
+    "capture": 33.57,
+    "roi": 8.66,
+    "crop": 0.03,
+    "recognition": 330.77,
+    "memory": 0.04,
+    "gate": 0.0,
+    "panel": 40.1,
+    "diagnostics": 0.1,
+    "total": 413.29
+  }
+}

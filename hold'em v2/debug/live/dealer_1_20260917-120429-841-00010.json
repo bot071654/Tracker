@@ -1,0 +1,37 @@
+{
+  "slot": "dealer_1",
+  "status": "DETECTED",
+  "box": {
+    "left": 607,
+    "top": 216,
+    "width": 68,
+    "height": 88
+  },
+  "box_source": "this frame",
+  "present": true,
+  "card": "KH",
+  "confident": true,
+  "confidence": 0.6445,
+  "rank_confidence": 0.6445,
+  "suit_confidence": 0.9758,
+  "suit_margin": 0.3002,
+  "suit_scores": null,
+  "rank_scores": null,
+  "recognition_ms": 52.97,
+  "memory_card": "KH",
+  "shown_card": null,
+  "stamp": "20260917-120429-841-00010",
+  "generation": 0,
+  "state": "PLAYER_CARDS",
+  "timing_ms": {
+    "capture": 28.92,
+    "roi": 9.02,
+    "crop": 0.02,
+    "recognition": 354.57,
+    "memory": 0.03,
+    "gate": 0.22,
+    "panel": 0.04,
+    "diagnostics": 0.2,
+    "total": 395.04
+  }
+}

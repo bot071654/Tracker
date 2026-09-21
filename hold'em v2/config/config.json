@@ -1,0 +1,79 @@
+{
+    "regions": {
+        "dealer_1": {
+            "left": 599,
+            "top": 207,
+            "width": 81,
+            "height": 92
+        },
+        "dealer_2": {
+            "left": 680,
+            "top": 205,
+            "width": 77,
+            "height": 98
+        },
+        "flop_1": {
+            "left": 483,
+            "top": 302,
+            "width": 77,
+            "height": 99
+        },
+        "flop_2": {
+            "left": 559,
+            "top": 303,
+            "width": 79,
+            "height": 100
+        },
+        "flop_3": {
+            "left": 637,
+            "top": 306,
+            "width": 80,
+            "height": 100
+        },
+        "turn": {
+            "left": 716,
+            "top": 304,
+            "width": 74,
+            "height": 96
+        },
+        "river": {
+            "left": 788,
+            "top": 303,
+            "width": 87,
+            "height": 102
+        },
+        "player_1": {
+            "left": 592,
+            "top": 407,
+            "width": 80,
+            "height": 114
+        },
+        "player_2": {
+            "left": 673,
+            "top": 408,
+            "width": 85,
+            "height": 115
+        }
+    },
+    "monitor": 1,
+    "screen_size": [
+        1366,
+        768
+    ],
+    "poll_interval_seconds": 0.2,
+    "confidence_threshold": 0.62,
+    "dealer_min_confidence": 0.8,
+    "dealer_min_total": 1.5,
+    "dealer_strong_confidence": 0.85,
+    "presence_threshold": 0.35,
+    "stable_frames": 2,
+    "latch_cards": true,
+    "clear_frames": 10,
+    "change_confirm_frames": 2,
+    "debug_save_failures": true,
+    "live_diagnostics": false,
+    "dealer_debug": true,
+    "dealer_face_cut": true,
+    "validate_with_result_boxes": false,
+    "result_boxes": {}
+}

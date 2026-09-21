@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.pyc
+logs/*.log
+logs/*.log.*
+data/*.xlsx
+.pytest_cache/
+config/window_state.json
+dist/
+.venv-mac/

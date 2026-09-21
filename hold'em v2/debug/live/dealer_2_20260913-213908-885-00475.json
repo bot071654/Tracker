@@ -1,0 +1,37 @@
+{
+  "slot": "dealer_2",
+  "status": "CONFIRMED",
+  "box": {
+    "left": 953,
+    "top": 302,
+    "width": 107,
+    "height": 125
+  },
+  "box_source": "calibrated",
+  "present": true,
+  "card": "JS",
+  "confident": false,
+  "confidence": 0.441,
+  "rank_confidence": 0.5797,
+  "suit_confidence": 0.441,
+  "suit_margin": 0.076,
+  "suit_scores": null,
+  "rank_scores": null,
+  "recognition_ms": 24.71,
+  "memory_card": "QD",
+  "shown_card": "QD",
+  "stamp": "20260913-213908-885-00475",
+  "generation": 89,
+  "state": "COMPLETE",
+  "timing_ms": {
+    "capture": 59.73,
+    "roi": 35.09,
+    "crop": 0.05,
+    "recognition": 266.3,
+    "memory": 0.1,
+    "gate": 0.01,
+    "panel": 2.27,
+    "diagnostics": 0.13,
+    "total": 363.74
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "slot": "dealer_1",
+  "status": "CONFIRMED",
+  "box": {
+    "left": 599,
+    "top": 207,
+    "width": 81,
+    "height": 92
+  },
+  "box_source": "calibrated",
+  "present": true,
+  "card": "10S",
+  "confident": false,
+  "confidence": 0.4187,
+  "rank_confidence": 0.4378,
+  "suit_confidence": 0.4187,
+  "suit_margin": 0.2039,
+  "suit_scores": null,
+  "rank_scores": null,
+  "recognition_ms": 62.51,
+  "memory_card": "JC",
+  "shown_card": "JC",
+  "stamp": "20260916-163659-795-01221",
+  "generation": 422,
+  "state": "RIVER",
+  "timing_ms": {
+    "capture": 60.46,
+    "roi": 15.48,
+    "crop": 0.02,
+    "recognition": 299.5,
+    "memory": 0.03,
+    "gate": 0.0,
+    "panel": 92.02,
+    "diagnostics": 0.13,
+    "total": 470.04
+  }
+}

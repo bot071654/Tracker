@@ -1,0 +1,37 @@
+{
+  "slot": "dealer_2",
+  "status": "CONFIRMED",
+  "box": {
+    "left": 958,
+    "top": 309,
+    "width": 98,
+    "height": 122
+  },
+  "box_source": "this frame",
+  "present": true,
+  "card": "5S",
+  "confident": true,
+  "confidence": 0.8794,
+  "rank_confidence": 0.8794,
+  "suit_confidence": 0.9767,
+  "suit_margin": 0.1045,
+  "suit_scores": null,
+  "rank_scores": null,
+  "recognition_ms": 34.42,
+  "memory_card": "5S",
+  "shown_card": "5S",
+  "stamp": "20260913-220610-725-00051",
+  "generation": 7,
+  "state": "COMPLETE",
+  "timing_ms": {
+    "capture": 45.53,
+    "roi": 38.67,
+    "crop": 0.02,
+    "recognition": 381.84,
+    "memory": 0.04,
+    "gate": 0.01,
+    "panel": 121.34,
+    "diagnostics": 0.3,
+    "total": 587.8
+  }
+}

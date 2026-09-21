@@ -1,0 +1,37 @@
+{
+  "slot": "dealer_1",
+  "status": "CONFIRMED",
+  "box": {
+    "left": 606,
+    "top": 214,
+    "width": 72,
+    "height": 82
+  },
+  "box_source": "this frame",
+  "present": true,
+  "card": "7C",
+  "confident": true,
+  "confidence": 0.9318,
+  "rank_confidence": 0.9318,
+  "suit_confidence": 0.9682,
+  "suit_margin": 0.0844,
+  "suit_scores": null,
+  "rank_scores": null,
+  "recognition_ms": 44.65,
+  "memory_card": "7C",
+  "shown_card": "7C",
+  "stamp": "20260916-234125-514-00079",
+  "generation": 27,
+  "state": "COMPLETE",
+  "timing_ms": {
+    "capture": 23.4,
+    "roi": 4.11,
+    "crop": 0.03,
+    "recognition": 273.41,
+    "memory": 0.03,
+    "gate": 0.0,
+    "panel": 1.18,
+    "diagnostics": 0.47,
+    "total": 302.68
+  }
+}

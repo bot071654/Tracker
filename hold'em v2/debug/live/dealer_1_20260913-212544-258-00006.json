@@ -1,0 +1,37 @@
+{
+  "slot": "dealer_1",
+  "status": "UNKNOWN",
+  "box": {
+    "left": 842,
+    "top": 303,
+    "width": 112,
+    "height": 123
+  },
+  "box_source": "calibrated",
+  "present": true,
+  "card": "5S",
+  "confident": false,
+  "confidence": 0.2674,
+  "rank_confidence": 0.4553,
+  "suit_confidence": 0.2674,
+  "suit_margin": 0.0142,
+  "suit_scores": null,
+  "rank_scores": null,
+  "recognition_ms": 24.72,
+  "memory_card": null,
+  "shown_card": null,
+  "stamp": "20260913-212544-258-00006",
+  "generation": 19,
+  "state": "PLAYER_CARDS",
+  "timing_ms": {
+    "capture": 36.29,
+    "roi": 39.04,
+    "crop": 0.07,
+    "recognition": 218.33,
+    "memory": 0.17,
+    "gate": 0.01,
+    "panel": 3.85,
+    "diagnostics": 0.86,
+    "total": 306.71
+  }
+}

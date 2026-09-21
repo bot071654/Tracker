@@ -1,0 +1,37 @@
+{
+  "slot": "dealer_1",
+  "status": "UNKNOWN",
+  "box": {
+    "left": 842,
+    "top": 303,
+    "width": 112,
+    "height": 123
+  },
+  "box_source": "calibrated",
+  "present": true,
+  "card": "JS",
+  "confident": false,
+  "confidence": 0.2678,
+  "rank_confidence": 0.2678,
+  "suit_confidence": 0.2858,
+  "suit_margin": 0.0415,
+  "suit_scores": null,
+  "rank_scores": null,
+  "recognition_ms": 71.98,
+  "memory_card": null,
+  "shown_card": null,
+  "stamp": "20260916-120200-213-00049",
+  "generation": 9,
+  "state": "WAITING",
+  "timing_ms": {
+    "capture": 36.59,
+    "roi": 22.71,
+    "crop": 0.05,
+    "recognition": 193.0,
+    "memory": 0.01,
+    "gate": 0.0,
+    "panel": 2.29,
+    "diagnostics": 0.21,
+    "total": 282.99
+  }
+}

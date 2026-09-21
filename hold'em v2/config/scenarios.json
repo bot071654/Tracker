@@ -1,0 +1,48 @@
+{
+    "preround": {
+        "default": "ante",
+        "rules": [
+            {
+                "previous_dealer_hand": "Any",
+                "previous_player_hand": "Any",
+                "previous_winner": "Any",
+                "player_win_streak": 2,
+                "action": "ante",
+                "name": "If the player won the last 2 rounds, increase bet and play"
+            },
+            {
+                "previous_dealer_hand": "Any",
+                "previous_player_hand": "Any",
+                "previous_winner": "Dealer",
+                "player_win_streak": 0,
+                "action": "skip",
+                "name": "If the dealer won the last round, skip this one"
+            },
+            {
+                "previous_dealer_hand": "Any",
+                "previous_player_hand": "Any",
+                "previous_winner": "Player",
+                "player_win_streak": 0,
+                "action": "ante",
+                "name": "If the player won the last round, play"
+            }
+        ]
+    },
+    "flop": {
+        "default": "play",
+        "rules": [
+            {
+                "hand": "Any",
+                "condition": "the flop is paired",
+                "action": "play",
+                "name": "If the flop is paired, play on"
+            },
+            {
+                "hand": "High Card",
+                "condition": "highest card showing is A, K or Q",
+                "action": "play",
+                "name": "If the hand is High Card with A, K or Q high, play on"
+            }
+        ]
+    }
+}

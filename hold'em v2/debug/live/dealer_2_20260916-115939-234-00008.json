@@ -1,0 +1,37 @@
+{
+  "slot": "dealer_2",
+  "status": "CONFIRMED",
+  "box": {
+    "left": 686,
+    "top": 218,
+    "width": 74,
+    "height": 88
+  },
+  "box_source": "this frame",
+  "present": true,
+  "card": "9S",
+  "confident": true,
+  "confidence": 0.9033,
+  "rank_confidence": 0.9033,
+  "suit_confidence": 0.9698,
+  "suit_margin": 0.0931,
+  "suit_scores": null,
+  "rank_scores": null,
+  "recognition_ms": 36.45,
+  "memory_card": "9S",
+  "shown_card": "9S",
+  "stamp": "20260916-115939-234-00008",
+  "generation": 0,
+  "state": "COMPLETE",
+  "timing_ms": {
+    "capture": 19.2,
+    "roi": 9.16,
+    "crop": 0.02,
+    "recognition": 179.71,
+    "memory": 0.03,
+    "gate": 0.0,
+    "panel": 37.28,
+    "diagnostics": 2.4,
+    "total": 248.45
+  }
+}

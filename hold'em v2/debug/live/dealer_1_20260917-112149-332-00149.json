@@ -1,0 +1,37 @@
+{
+  "slot": "dealer_1",
+  "status": "CONFIRMED",
+  "box": {
+    "left": 607,
+    "top": 216,
+    "width": 68,
+    "height": 86
+  },
+  "box_source": "this frame",
+  "present": true,
+  "card": "10S",
+  "confident": true,
+  "confidence": 0.9454,
+  "rank_confidence": 0.9454,
+  "suit_confidence": 0.961,
+  "suit_margin": 0.0841,
+  "suit_scores": null,
+  "rank_scores": null,
+  "recognition_ms": 46.34,
+  "memory_card": "10S",
+  "shown_card": "10S",
+  "stamp": "20260917-112149-332-00149",
+  "generation": 50,
+  "state": "PLAYER_CARDS",
+  "timing_ms": {
+    "capture": 23.48,
+    "roi": 10.29,
+    "crop": 0.02,
+    "recognition": 345.64,
+    "memory": 0.07,
+    "gate": 0.01,
+    "panel": 32.93,
+    "diagnostics": 0.14,
+    "total": 412.64
+  }
+}

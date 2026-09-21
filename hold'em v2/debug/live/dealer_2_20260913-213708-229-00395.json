@@ -1,0 +1,37 @@
+{
+  "slot": "dealer_2",
+  "status": "UNKNOWN",
+  "box": {
+    "left": 960,
+    "top": 309,
+    "width": 98,
+    "height": 124
+  },
+  "box_source": "this frame",
+  "present": true,
+  "card": "7S",
+  "confident": false,
+  "confidence": 0.3411,
+  "rank_confidence": 0.3411,
+  "suit_confidence": 0.4119,
+  "suit_margin": 0.015,
+  "suit_scores": null,
+  "rank_scores": null,
+  "recognition_ms": 25.34,
+  "memory_card": null,
+  "shown_card": null,
+  "stamp": "20260913-213708-229-00395",
+  "generation": 81,
+  "state": "FLOP",
+  "timing_ms": {
+    "capture": 49.28,
+    "roi": 25.28,
+    "crop": 0.02,
+    "recognition": 174.06,
+    "memory": 0.1,
+    "gate": 0.01,
+    "panel": 42.78,
+    "diagnostics": 0.5,
+    "total": 292.14
+  }
+}

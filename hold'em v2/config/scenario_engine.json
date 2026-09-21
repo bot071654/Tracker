@@ -1,0 +1,22 @@
+{
+    "high_card_ranks": [
+        "A",
+        "K",
+        "Q"
+    ],
+    "high_card_source": "player",
+    "high_card_min_count": 1,
+    "play_scenarios": [
+        "HIGH_CARD_AKQ",
+        "PLAYER_PAIR",
+        "COMBINED_PAIR",
+        "FLOP_PAIR",
+        "PLAYER_PAIR_PLUS_FLOP_PAIR",
+        "COMBINED_TWO_PAIR",
+        "PLAYER_PAIR_CARD_PLUS_FLOP_PAIR",
+        "PLAYER_PAIR_PLUS_FLOP_MATCH",
+        "PLAYER_CARD_PLUS_FLOP_PAIR",
+        "STRAIGHT"
+    ],
+    "min_readings": 2
+}

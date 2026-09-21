@@ -1,0 +1,37 @@
+{
+  "slot": "dealer_1",
+  "status": "CONFIRMED",
+  "box": {
+    "left": 841,
+    "top": 309,
+    "width": 112,
+    "height": 122
+  },
+  "box_source": "this frame",
+  "present": true,
+  "card": "JS",
+  "confident": true,
+  "confidence": 0.9315,
+  "rank_confidence": 0.9315,
+  "suit_confidence": 0.9693,
+  "suit_margin": 0.0861,
+  "suit_scores": null,
+  "rank_scores": null,
+  "recognition_ms": 29.28,
+  "memory_card": "JS",
+  "shown_card": "JS",
+  "stamp": "20260919-143546-131-00106",
+  "generation": 64,
+  "state": "COMPLETE",
+  "timing_ms": {
+    "capture": 52.02,
+    "roi": 57.6,
+    "crop": 0.02,
+    "recognition": 489.91,
+    "memory": 0.04,
+    "gate": 0.01,
+    "panel": 90.82,
+    "diagnostics": 0.29,
+    "total": 692.13
+  }
+}

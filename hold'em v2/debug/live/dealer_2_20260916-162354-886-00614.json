@@ -1,0 +1,37 @@
+{
+  "slot": "dealer_2",
+  "status": "UNKNOWN",
+  "box": {
+    "left": 680,
+    "top": 205,
+    "width": 77,
+    "height": 98
+  },
+  "box_source": "calibrated",
+  "present": true,
+  "card": "7H",
+  "confident": false,
+  "confidence": 0.2369,
+  "rank_confidence": 0.614,
+  "suit_confidence": 0.2369,
+  "suit_margin": 0.0529,
+  "suit_scores": null,
+  "rank_scores": null,
+  "recognition_ms": 15.25,
+  "memory_card": null,
+  "shown_card": null,
+  "stamp": "20260916-162354-886-00614",
+  "generation": 373,
+  "state": "RIVER",
+  "timing_ms": {
+    "capture": 33.85,
+    "roi": 13.85,
+    "crop": 0.02,
+    "recognition": 149.83,
+    "memory": 0.03,
+    "gate": 0.0,
+    "panel": 49.93,
+    "diagnostics": 0.14,
+    "total": 280.75
+  }
+}

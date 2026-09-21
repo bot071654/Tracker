@@ -1,0 +1,37 @@
+{
+  "slot": "dealer_1",
+  "status": "CONFIRMED",
+  "box": {
+    "left": 596,
+    "top": 214,
+    "width": 82,
+    "height": 88
+  },
+  "box_source": "this frame",
+  "present": true,
+  "card": "4H",
+  "confident": true,
+  "confidence": 0.9044,
+  "rank_confidence": 0.9044,
+  "suit_confidence": 0.9812,
+  "suit_margin": 0.3259,
+  "suit_scores": null,
+  "rank_scores": null,
+  "recognition_ms": 69.28,
+  "memory_card": "4H",
+  "shown_card": "4H",
+  "stamp": "20260916-171653-222-02181",
+  "generation": 538,
+  "state": "COMPLETE",
+  "timing_ms": {
+    "capture": 45.41,
+    "roi": 19.35,
+    "crop": 0.05,
+    "recognition": 665.96,
+    "memory": 0.05,
+    "gate": 0.01,
+    "panel": 67.84,
+    "diagnostics": 0.18,
+    "total": 798.88
+  }
+}
