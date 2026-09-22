@@ -1,11 +1,22 @@
-"""Create the database and the poker_hands table.
+"""Create the poker_hands table in the database .env points at.
 
 Reads the connection details from .env (see .env.example), so no credentials
 live in the code.
 
 Run:  python tools/setup_database.py
+
+This creates the TABLE. It does not create the DATABASE, because the database
+is created once, by the PostgreSQL container itself, from POSTGRES_DB in
+docker-compose.yml - see docs/DATABASE.md.
+
+That distinction is the whole point. When every developer ran this and it
+issued CREATE DATABASE, every developer ended up with a database of their own
+and the team's hands were scattered across all of them. Creating a database
+now needs --create-database, said out loud, by whoever is setting up the
+server.
 """
 
+import argparse
 import os
 import sys
 
@@ -16,11 +27,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database import db  # noqa: E402
 
 
-def main():
-    settings = db.connection_settings()
+def create_database(settings):
+    """CREATE DATABASE, for setting up a server that is not a container."""
     target = settings["dbname"]
-    print("Connecting to %s:%s as %s" % (settings["host"], settings["port"], settings["user"]))
-
     admin = dict(settings, dbname="postgres")
     try:
         with psycopg.connect(autocommit=True, connect_timeout=5, **admin) as conn:
@@ -35,15 +44,38 @@ def main():
     except Exception as exc:  # noqa: BLE001
         print("Could not create the database: %s" % exc)
         print("Check POSTGRES_* values in your .env file.")
+        return False
+    return True
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Create the poker_hands table.")
+    parser.add_argument(
+        "--create-database", action="store_true",
+        help="also CREATE DATABASE if it is missing. Only for a server that "
+             "is not the project's container, which makes its own.")
+    args = parser.parse_args()
+
+    try:
+        settings = db.connection_settings()
+    except db.DatabaseError as exc:
+        print(exc)
+        return 1
+    print("Connecting to %s" % db.describe_target(settings))
+
+    if args.create_database and not create_database(settings):
         return 1
 
     try:
         db.ensure_schema()
     except db.DatabaseError as exc:
         print("Could not create the table: %s" % exc)
+        if "does not exist" in str(exc):
+            print("The database itself is missing. If this server is not the "
+                  "project's container, re-run with --create-database.")
         return 1
 
-    print("Table poker_hands is ready in %r" % target)
+    print("Table poker_hands is ready in %r" % settings["dbname"])
 
     filled = backfill_winners()
     if filled:

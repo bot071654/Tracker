@@ -1,7 +1,13 @@
 """PostgreSQL access - the permanent source of truth for recorded hands.
 
+PostgreSQL is the only database this project supports. The server it talks to
+is the one the team has agreed on, which is a PostgreSQL 18 container (see
+docker-compose.yml and docs/DATABASE.md); there is no local file database and
+no second store to fall back to.
+
 Credentials come from environment variables (see .env.example); nothing is
-hard-coded.
+hard-coded, and no connection setting has a default that could quietly point
+at a different server - see REQUIRED_SETTINGS.
 """
 
 import logging
@@ -45,16 +51,72 @@ class DatabaseError(RuntimeError):
     """Raised when PostgreSQL is unavailable or a query fails."""
 
 
+class ConfigurationError(DatabaseError):
+    """Raised when the connection settings are missing or unusable.
+
+    A subclass of DatabaseError so that every existing caller - the startup
+    check, the tracker's retry, the tools - already handles it and reports it
+    the way it reports any other database problem.
+    """
+
+
+# Which server, which account. Every one of these must be set: there is
+# deliberately no default for any of them.
+#
+# The values they used to default to were "localhost", 5432, "postgres" and an
+# empty password - which is precisely a stock PostgreSQL install. A developer
+# who cloned this project without an .env did not get an error; they silently
+# connected to whatever PostgreSQL happened to be on their own machine, and
+# their hands went into a database nobody else could see. Failing with a named
+# missing variable is the whole point.
+REQUIRED_SETTINGS = ("POSTGRES_HOST", "POSTGRES_PORT",
+                     "POSTGRES_USER", "POSTGRES_PASSWORD")
+
+# The database name inside that server. This one may default, because it is
+# fixed by the project and documented, and a name on its own cannot send the
+# connection to a different server or account.
+DEFAULT_DATABASE = "poker_tracker"
+
+
 def connection_settings():
-    """Connection settings from the environment (.env is loaded if present)."""
+    """Connection settings from the environment (.env is loaded if present).
+
+    Raises ConfigurationError naming every variable that is missing or empty,
+    rather than filling one in and connecting somewhere unintended.
+    """
     load_dotenv(os.path.join(ROOT, ".env"))
+
+    missing = [name for name in REQUIRED_SETTINGS if not (os.getenv(name) or "").strip()]
+    if missing:
+        raise ConfigurationError(
+            "Missing database settings: %s. Copy .env.example to .env and fill "
+            "in the details of the team's PostgreSQL server - see "
+            "docs/DATABASE.md. Nothing is assumed, so that a missing setting "
+            "cannot silently connect you to a different database."
+            % ", ".join(missing)
+        )
+
+    port = (os.getenv("POSTGRES_PORT") or "").strip()
+    try:
+        port = int(port)
+    except ValueError:
+        raise ConfigurationError(
+            "POSTGRES_PORT must be a number, not %r" % port) from None
+
     return {
-        "host": os.getenv("POSTGRES_HOST", "localhost"),
-        "port": int(os.getenv("POSTGRES_PORT", "5432")),
-        "dbname": os.getenv("POSTGRES_DATABASE", "poker_tracker"),
-        "user": os.getenv("POSTGRES_USER", "postgres"),
-        "password": os.getenv("POSTGRES_PASSWORD", ""),
+        "host": os.getenv("POSTGRES_HOST").strip(),
+        "port": port,
+        "dbname": (os.getenv("POSTGRES_DATABASE") or DEFAULT_DATABASE).strip(),
+        "user": os.getenv("POSTGRES_USER").strip(),
+        "password": os.getenv("POSTGRES_PASSWORD"),
     }
+
+
+def describe_target(settings=None):
+    """Where we are pointed, as "user@host:port/dbname". Never the password."""
+    settings = settings or connection_settings()
+    return "%s@%s:%s/%s" % (settings["user"], settings["host"],
+                            settings["port"], settings["dbname"])
 
 
 def get_connection():
@@ -64,8 +126,8 @@ def get_connection():
         return psycopg.connect(connect_timeout=5, **settings)
     except Exception as exc:  # noqa: BLE001 - psycopg raises several types
         raise DatabaseError(
-            "Cannot connect to PostgreSQL at %s:%s/%s - %s"
-            % (settings["host"], settings["port"], settings["dbname"], exc)
+            "Cannot connect to PostgreSQL at %s - %s"
+            % (describe_target(settings), exc)
         ) from exc
 
 
@@ -82,6 +144,27 @@ def ensure_schema():
     except Exception as exc:  # noqa: BLE001
         raise DatabaseError("Could not create schema: %s" % exc) from exc
     logger.info("Database schema verified")
+
+
+def verify_schema():
+    """(ok, message) - is the poker_hands table there?
+
+    Checks rather than creates. ensure_schema() still exists and is what the
+    one-time server setup runs; the application only asks. The difference
+    matters once the whole team shares one server: a developer pointed at the
+    wrong (empty) database would otherwise have the schema built for them
+    there, and would go on recording hands into it without ever being told.
+    """
+    try:
+        with get_connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT to_regclass('public.poker_hands')")
+            if cur.fetchone()[0] is None:
+                return False, (
+                    "No poker_hands table in %s. If this is the right server, "
+                    "run: python tools/setup_database.py" % describe_target())
+        return True, "Schema verified"
+    except DatabaseError as exc:
+        return False, str(exc)
 
 
 def check_connection():
@@ -114,9 +197,19 @@ def insert_hand(record):
 
     Returns (inserted, row) where `inserted` is False when the fingerprint was
     already stored, and `row` is the full stored row (id + recorded_at + data).
+
+    `recorded_at` is normally left to the column's own CURRENT_TIMESTAMP - the
+    tracker stores a hand the moment it finishes, so now is the right answer.
+    A record that carries one has it written instead, which is what importing
+    historical hands needs: tools/import_excel.py replays rounds recorded
+    months ago, and stamping them all with the time of the import would throw
+    away the one column that says when they were really played.
     """
     row = record_to_row(record)
     columns = COLUMNS + ["hand_fingerprint"]
+    if record.get("recorded_at") is not None:
+        row["recorded_at"] = record["recorded_at"]
+        columns = ["recorded_at"] + columns
     placeholders = ", ".join("%s" for _ in columns)
     values = [row[column] for column in columns]
 

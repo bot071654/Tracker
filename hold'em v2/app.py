@@ -713,10 +713,13 @@ class App:
 
         ok, message = db.check_connection()
         if ok:
-            try:
-                db.ensure_schema()
-            except db.DatabaseError as exc:
-                notes.append(str(exc))
+            # Asked, not built. Creating the schema here would mean a
+            # developer pointed at the wrong database got one made for them
+            # and never found out; the server's schema is set up once, by
+            # tools/setup_database.py. See docs/DATABASE.md.
+            schema_ok, schema_message = db.verify_schema()
+            if not schema_ok:
+                notes.append(schema_message)
             # Rounds already recorded are what a rule about consecutive wins
             # asks about, so a restart mid-session should not forget them.
             try:

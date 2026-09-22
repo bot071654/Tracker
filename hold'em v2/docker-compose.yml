@@ -1,0 +1,76 @@
+# The project's PostgreSQL server.
+#
+# This file describes the DATABASE SERVER, not the application. Running it is
+# the job of whoever hosts the team's database - see docs/DATABASE.md. A
+# developer who only wants to run the tracker does NOT run this: they point
+# their .env at the server that is already running.
+#
+# Credentials are read from .env.docker (gitignored), never written here.
+# Copy .env.docker.example to .env.docker on the database host and fill it in:
+#
+#     docker compose --env-file .env.docker up -d db
+#
+# The volume and container names match the ones already in use on this
+# machine, so this file adopts the running database rather than starting a
+# second, empty one.
+
+services:
+  db:
+    image: postgres:18
+    container_name: poker_tracker_postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ${POSTGRES_DATABASE:?set POSTGRES_DATABASE in .env.docker}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env.docker}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.docker}
+      # Only read when the volume is first initialised; ignored afterwards.
+      # Matches the existing database, which is UTF8 / en_US.utf8.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+
+    # host:container. The host side is 5433 so the container does not fight a
+    # PostgreSQL already installed on the machine, which would hold 5432.
+    #
+    # The bind address decides who can reach it, and it is the single most
+    # important line in this file:
+    #
+    #   127.0.0.1:5433:5432   only this machine          (default below)
+    #   10.0.0.42:5433:5432   only the named LAN address (shared server)
+    #   5433:5432             EVERY interface  <- do not use; on a machine
+    #                         with a public IP this puts PostgreSQL on the
+    #                         internet for anyone to attempt.
+    #
+    # Override with DB_BIND in .env.docker, e.g. DB_BIND=10.0.0.42
+    ports:
+      - "${DB_BIND:-127.0.0.1}:${POSTGRES_PORT:-5433}:5432"
+
+    volumes:
+      # /var/lib/postgresql, NOT /var/lib/postgresql/data.
+      #
+      # PostgreSQL 18's image moved the data directory: PGDATA is
+      # /var/lib/postgresql/18/docker and the image declares its volume at
+      # /var/lib/postgresql. The older /var/lib/postgresql/data path, which is
+      # what nearly every compose example still shows, mounts the volume
+      # somewhere PGDATA is not - so the database would start empty and every
+      # recorded hand would be written to the container's writable layer and
+      # lost the next time it was recreated. This path is the one the running
+      # container already uses.
+      - postgres_data:/var/lib/postgresql
+
+    healthcheck:
+      # -q so the password never reaches the log; pg_isready needs no password
+      # for a local socket check, and this runs inside the container.
+      test: ["CMD-SHELL", "pg_isready -q -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  # external: the volume already exists and holds the data. Declaring it
+  # external means compose adopts it instead of creating a project-prefixed
+  # one of its own (which would be empty) - and means `docker compose down -v`
+  # cannot remove it.
+  postgres_data:
+    external: true
+    name: poker_tracker_pgdata

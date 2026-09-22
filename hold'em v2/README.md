@@ -30,9 +30,12 @@ you will need to redo them:
    1920×1080 screen with the browser in one particular position. They will not
    match your screen. **You must run Calibrate before the tracker will read
    anything** (section 5).
-2. **Database.** You need your own PostgreSQL and your own `.env` file
-   (section 3). There should be no `.env` in this folder — if there is, ignore
-   it and make your own.
+2. **Database.** You do **not** make your own. The project uses one shared
+   PostgreSQL server, running as a Docker container on a machine the team has
+   agreed on; you copy `.env.example` to `.env` and fill in that server's
+   address and your credentials. Cloning this repository does not create a
+   database, and there are no default connection settings — a missing one is
+   an error, not a guess. See **[docs/DATABASE.md](docs/DATABASE.md)**.
 3. **Card templates.** `recognition/templates/` contains card artwork learned
    from an **Ezugi Casino Hold'em** table. If you play the same game they should
    work as-is. A different provider draws its cards differently and you will
@@ -67,7 +70,8 @@ game, or tell you how to play.
 - **Windows** (it uses Windows DPI awareness and system fonts; the rest is
   cross-platform but has only been run on Windows 11)
 - **Python 3.12 or newer** — check with `python --version`
-- **PostgreSQL 12 or newer**, running locally
+- **Docker Desktop** if you are hosting the database; otherwise just the
+  address of the team's PostgreSQL server (see [docs/DATABASE.md](docs/DATABASE.md))
 - A screen showing the casino table (a browser window)
 
 **Built with:**
@@ -114,40 +118,36 @@ This draws a starter set of rank and suit shapes from your Windows fonts. They
 are only a fallback — real accuracy comes from teaching it the casino's own
 cards in section 6.
 
-**Step 4 — set up the database.**
-
-Copy the example environment file:
+**Step 4 — point at the team's database.**
 
 ```bash
 copy .env.example .env
 ```
 
-Open `.env` in a text editor and fill in your PostgreSQL details:
+Fill in the address of the shared PostgreSQL server and your credentials. Ask
+whoever runs it — the password is not in this repository and never will be.
 
 ```
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
+POSTGRES_HOST=       # the database host; NOT localhost unless you run it
+POSTGRES_PORT=5433
 POSTGRES_DATABASE=poker_tracker
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=your_password_here
+POSTGRES_USER=poker_tracker
+POSTGRES_PASSWORD=
 ```
 
-> **Port:** 5432 is the PostgreSQL default, but some installers use another —
-> PostgreSQL 18 often installs on **5433**. If connections fail, check the
-> `port` line in your `postgresql.conf`.
+There is nothing to create. The database and the `poker_hands` table already
+exist on that server. **Do not** run `tools/setup_database.py` — that is part
+of setting up the server, not of joining it.
 
-Then create the database and table:
+Every setting is required. Leave one out and you get a message naming it,
+rather than a silent connection to whatever PostgreSQL happens to be on your
+own machine — which is what used to happen, and it meant your hands went into
+a database nobody else could see.
 
-```bash
-python tools/setup_database.py
-```
+Setting up the server itself, sharing it over a LAN, backups, health checks
+and troubleshooting are all in **[docs/DATABASE.md](docs/DATABASE.md)**.
 
-That creates the `poker_tracker` database if it does not exist, creates the
-`poker_hands` table, and adds any columns a newer version needs. It is safe to
-re-run at any time.
-
-`.env` is listed in `.gitignore` and is never read by anything but the database
-layer. No credentials appear anywhere in the code.
+`.env` is gitignored. No credentials appear anywhere in the code.
 
 **Step 5 — check it all works.**
 
@@ -494,8 +494,10 @@ never clicks or bets, and there is no setting that makes it.
 
 ## 9. Where the data goes
 
-**PostgreSQL** is the source of truth — table `poker_hands`. **Excel** is a
-mirror at `data/poker_hands.xlsx`, appended after every successful insert.
+**PostgreSQL** is the source of truth — table `poker_hands`, in the shared
+container described in [docs/DATABASE.md](docs/DATABASE.md). **Excel** is a
+mirror at `data/poker_hands.xlsx`, appended after every successful insert, so
+it is only ever behind the database and never ahead of it.
 
 Columns: ID, Recorded At, Player Card 1/2, Flop Card 1/2/3, Turn, River, Dealer
 Card 1/2, Player Hand, Dealer Hand, Winner, Dealer Qualified, plus the timings.
@@ -532,7 +534,10 @@ file is deleted, is out of step, or was locked while hands were being recorded.
 | Command | What it does |
 | --- | --- |
 | `python app.py` | Run the tracker |
-| `python tools/setup_database.py` | Create/migrate the database — safe to re-run |
+| `python tools/setup_database.py` | Create the `poker_hands` table. Server setup only — not part of joining |
+| `python tools/import_excel.py --dry-run` | Report what a history import from Excel would do |
+| `python tools/import_excel.py` | Import `data/poker_hands.xlsx` into PostgreSQL — safe to re-run |
+| `docker compose --env-file .env.docker up -d db` | Start the database server |
 | `python tools/generate_templates.py` | Redraw the fallback card templates |
 | `python tools/audit_templates.py` | Find badly learned templates (`--remove` to delete) |
 | `python tools/backtest.py` | Score your scenarios against recorded hands |
@@ -602,6 +607,10 @@ hold'em v2/
 ├── tracker.py                 polling loop, card memory, round timer, saving
 ├── requirements.txt
 ├── .env.example               copy to .env and fill in
+├── .env.docker.example        the SERVER's credentials (database host only)
+├── docker-compose.yml         the PostgreSQL 18 server
+├── docs/DATABASE.md           architecture, setup, sharing, backup
+├── scripts/                   db_backup, db_restore (.sh and .ps1)
 │
 ├── config/
 │   ├── config.json            calibration + thresholds
