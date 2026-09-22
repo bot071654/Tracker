@@ -94,6 +94,22 @@ DEFAULT_CONFIG = {
     "dealer_face_cut": True,
     "validate_with_result_boxes": False,
     "result_boxes": {},               # optional: {"player": {...}, "dealer": {...}}
+
+    # Spoken announcements of what the tracker has already worked out - the
+    # cards as they settle, the player's hand, and the result. Read-only: the
+    # voice never interacts with the game, and it runs on its own thread so it
+    # cannot hold up the recognition loop. See voice/announcer.py.
+    #
+    # With voice_enabled false nothing is imported, no thread is started and
+    # no speech engine is created; the tracker behaves exactly as it did
+    # before the feature existed.
+    "voice_enabled": True,
+    "voice_rate": 180,                # words per minute; pyttsx3's default is 200
+    "voice_volume": 1.0,              # 0.0 - 1.0
+    # Part of an installed voice's name, matched case-insensitively, e.g.
+    # "zira" or "david". Empty means the system default. A name that matches
+    # nothing logs a warning and falls back rather than failing.
+    "voice_name": "",
 }
 
 

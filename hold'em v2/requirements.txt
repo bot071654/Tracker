@@ -10,6 +10,11 @@ python-dotenv>=1.0
 # poker table only, and only when config/mouse_controller.json enables it.
 pyautogui>=0.9.54
 
+# Spoken announcements (voice/). Windows SAPI5 through pyttsx3: offline, no
+# account and no API key. Optional - with voice_enabled false in
+# config/config.json it is never imported, and the tracker runs without it.
+pyttsx3>=2.90
+
 # Only used by tools/generate_templates.py to render the starter templates.
 pillow>=10.0
 

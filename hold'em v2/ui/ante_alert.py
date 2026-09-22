@@ -23,6 +23,7 @@ import time
 import tkinter as tk
 
 from poker import scenarios as scenario_rules
+from ui.decision_banner import DecisionBanner
 
 logger = logging.getLogger(__name__)
 
@@ -123,62 +124,8 @@ def play_sound(action):
         pass
 
 
-class AnteAlertBanner:
-    """A large, always-on-top banner near the top of the screen. Never takes focus."""
-
-    def __init__(self, root, width=520, height=110, top=70, sound=True):
-        self.root = root
-        self.sound = sound
-        self.window = tk.Toplevel(root)
-        self.window.withdraw()
-        self.window.overrideredirect(True)            # no title bar, no taskbar button
-        self.window.attributes("-topmost", True)
-        try:
-            self.window.attributes("-alpha", 0.93)
-        except tk.TclError:
-            pass
-        left = max(0, (root.winfo_screenwidth() - width) // 2)
-        self.window.geometry("%dx%d+%d+%d" % (width, height, left, top))
-        self.title_var = tk.StringVar()
-        self.reason_var = tk.StringVar()
-        self.frame = tk.Frame(self.window, bd=0)
-        self.frame.pack(fill="both", expand=True)
-        self.title_label = tk.Label(self.frame, textvariable=self.title_var,
-                                    font=("Segoe UI", 30, "bold"))
-        self.title_label.pack(pady=(10, 0))
-        self.reason_label = tk.Label(self.frame, textvariable=self.reason_var,
-                                     font=("Segoe UI", 10), wraplength=width - 20)
-        self.reason_label.pack()
-        self.visible = False
-        self.on_dismiss = None
-        for widget in (self.window, self.frame, self.title_label, self.reason_label):
-            widget.bind("<Button-1>", self._clicked)
-
-    def show(self, action, reason):
-        background, foreground = COLOURS[action]
-        self.title_var.set("ANTE NOW" if action == scenario_rules.ANTE else "SKIP THIS ROUND")
-        self.reason_var.set("%s   (click to dismiss)" % reason)
-        for widget in (self.window, self.frame, self.title_label, self.reason_label):
-            widget.configure(background=background)
-        for widget in (self.title_label, self.reason_label):
-            widget.configure(foreground=foreground)
-        self.window.deiconify()
-        self.window.lift()
-        self.visible = True
-        if self.sound:
-            play_sound(action)
-
-    def hide(self):
-        self.window.withdraw()
-        self.visible = False
-
-    def _clicked(self, _event=None):
-        self.hide()
-        if self.on_dismiss:
-            self.on_dismiss()
-
-    def destroy(self):
-        try:
-            self.window.destroy()
-        except tk.TclError:
-            pass
+# The banner itself now lives in ui/decision_banner.py, because it is no
+# longer about the ante: it is the window's one decision banner, and it shows
+# whichever decision is current. The name is kept so that everything already
+# referring to it keeps working - there is one widget, under two names.
+AnteAlertBanner = DecisionBanner

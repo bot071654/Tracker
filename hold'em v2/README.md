@@ -57,6 +57,7 @@ Delete them if you want to start clean — both are recreated automatically.
 | **Times the round** | Round length, flop-to-showdown, and the gap to the next round, in seconds |
 | **Stores it** | One row per round in PostgreSQL, mirrored to Excel, with duplicates impossible |
 | **Scenarios** | Your own if-this-then-that rules, shown as a recommendation and testable against your recorded history |
+| **Speaks** | Announces the cards, your hand and the result as they settle — offline, on its own thread, never holding up the tracker |
 
 What it deliberately does **not** do: press buttons, place bets, automate the
 game, or tell you how to play.
@@ -87,7 +88,7 @@ game, or tell you how to play.
 | Spreadsheet | openpyxl |
 | Config | JSON (`config/*.json`) + `.env` via python-dotenv |
 | Image generation | Pillow — only used to draw fallback card templates |
-| Tests | pytest — 243 tests |
+| Tests | pytest — 1,341 tests |
 | Logging | Python `logging`, rotating file in `logs/` |
 
 Everything runs locally. Nothing is sent anywhere.
@@ -155,8 +156,10 @@ and troubleshooting are all in **[docs/DATABASE.md](docs/DATABASE.md)**.
 python -m pytest tests -q
 ```
 
-You should see `243 passed`. Database tests skip themselves if PostgreSQL is
-unreachable, so a few skips are fine.
+You should see `1339 passed, 2 skipped`. Database tests skip themselves if
+PostgreSQL is unreachable, so a few more skips are fine. The two that always
+skip are the Action Controller test when PyAutoGUI is not installed, and a
+table-layout test that needs sample frames in `samples/`.
 
 ---
 
@@ -330,6 +333,49 @@ wins, and they are stored in `config/scenarios.json`.
 **The app never presses anything.** A scenario produces a recommendation, shown
 under "Your scenarios say", which you act on yourself.
 
+### The decision banner
+
+One banner, near the top of the screen, showing **one** decision — whichever
+one is current:
+
+```
+        ANTE NOW              PLAY NOW               WAIT
+        ────────              ────────               ────
+```
+
+There is never more than one. When the decision changes the words are replaced
+in the same banner; when it does not change, nothing is redrawn — the tracker
+polls five times a second and a stable decision must not flicker or chime.
+
+| the decision | shown as |
+| --- | --- |
+| `ante` (pre-round rules) | **ANTE NOW** |
+| `skip` (pre-round rules) | **SKIP ROUND** |
+| `play` (flop rules) / `PLAY` (Scenario Engine) | **PLAY NOW** |
+| `fold` (flop rules) | **FOLD** |
+| `DON'T_PLAY` (Scenario Engine) | **DON'T PLAY** |
+| `WAIT` (Scenario Engine) | **WAIT** |
+| `bonus` | **BONUS NOW** — see below |
+
+Every decision is drawn exactly the same way — same green, same position,
+same size, same font, same weight, same spacing, same underline — because
+they all go through the one widget (`ui/decision_banner.py`). Only the words
+change, so there is no colour to decode: you read the decision.
+
+The underline comes from the font rather than a rule drawn under a guess at
+the text width, so it is exactly as long as the words and cannot go missing
+for a longer or shorter decision.
+
+A decision belongs to the round that produced it. When the round changes, the
+banner clears rather than carrying the last round's answer into the new one,
+using the tracker's own round id.
+
+> **BONUS is not a decision.** Nothing in this project produces one. `bonus`
+> is the name of a button on the local test table, and the Action Controller
+> says of it: *"Nothing here ever clicks it: it is not an action and
+> validation refuses it."* The label exists so the banner is complete if a
+> bonus rule is ever written, but as things stand it will never appear.
+
 **Before the round** — decide whether to ante based on the round that just
 finished:
 
@@ -492,7 +538,101 @@ never clicks or bets, and there is no setting that makes it.
 
 ---
 
-## 9. Where the data goes
+## 9. The voice
+
+The tracker can say what it has just worked out: your two cards, the flop, the
+turn, the river, the hand you are holding, and who won.
+
+It only ever **reads out** what the rest of the application has already
+decided. It runs no recognition of its own, evaluates no hand, and does not
+click, bet or wager anything.
+
+```
+recognition -> CardMemory -> scenario/evaluation -> tracker event
+                                                         |
+                                       the window's event loop
+                                                         |
+                                     Announcer.announce()  (returns at once)
+                                                         |
+                                        queue -> voice thread -> speaker
+```
+
+**It cannot slow the tracker down.** The recognition loop never calls it —
+`tracker.py` does not import `voice` at all. The window feeds the announcer
+from its own event loop, and announcing is one queue put. A phrase that never
+finishes costs the tracker nothing; there is a test that wedges the speech
+engine open and ticks the tracker twenty times to prove it.
+
+### Controls
+
+A row in the main window:
+
+```
+Voice: IDLE     [ Pause ] [ Resume ] [ Stop ] [ Mute ]
+```
+
+| | |
+| --- | --- |
+| **Pause** | stops the phrase being spoken and says nothing more until Resume |
+| **Resume** | speaking again — without replaying what went stale while paused |
+| **Stop** | stops now and clears the queue, but does not latch: the next announcement is spoken |
+| **Mute** | silence; nothing is queued while muted, so unmuting does not release a backlog |
+
+The state beside the label is one of `OFF`, `IDLE`, `SPEAKING`, `PAUSED`,
+`MUTED`, `STOPPED` or `ERROR`. **None of them affect the tracker**, the card
+recognition, the scenario engine or the database, all of which keep running.
+
+### Settings
+
+In `config/config.json`:
+
+| | |
+| --- | --- |
+| `voice_enabled` | `true` by default. `false` and nothing is imported, no thread starts, no engine is created |
+| `voice_rate` | words per minute, default 180 |
+| `voice_volume` | 0.0 to 1.0 |
+| `voice_name` | part of an installed voice's name, e.g. `"zira"`. Empty means the system default |
+
+`voice_name` is matched case-insensitively against the installed voices, so
+you never paste a registry path. A name that matches nothing logs a warning
+and falls back to the default rather than failing.
+
+To see what is installed:
+
+```bash
+python -c "import pyttsx3; e=pyttsx3.init(); [print(v.name) for v in e.getProperty('voices')]"
+```
+
+Windows ships **David** and **Zira**; more can be added under
+Settings → Time & Language → Speech.
+
+### What it will not do
+
+* It never reads out a card that is still settling. A card is only spoken once
+  the tracker calls it `CONFIRMED` or `HELD` — the same gate the Scenario
+  Engine uses, downstream of `RANK_MARGIN`, `SUIT_MARGIN` and
+  `CORROBORATED_READING`. Nothing about recognition was changed for the voice.
+* It never repeats itself. The tracker polls five times a second; each
+  announcement is keyed on `(round_id, event, value)` and said once per round.
+  The round id is CardMemory's own generation — there is no second one.
+* It never catches up out loud. Speech is slower than the game, so cards from
+  a finished round are dropped unspoken. The **result** is kept, because that
+  is the one thing worth hearing a moment late.
+
+### The limitation worth knowing
+
+**There is no true audio pause.** pyttsx3's engine has no `pause()` or
+`resume()` — checked, not assumed. So Pause stops the current phrase and
+holds; Resume does not finish the interrupted sentence. The status line says
+`PAUSED`, and that is exactly what has happened.
+
+If speech is unavailable — pyttsx3 missing, no audio device, a broken driver
+— the state becomes `ERROR`, the reason is logged and shown once, and
+**everything else carries on**.
+
+---
+
+## 10. Where the data goes
 
 **PostgreSQL** is the source of truth — table `poker_hands`, in the shared
 container described in [docs/DATABASE.md](docs/DATABASE.md). **Excel** is a
@@ -529,7 +669,7 @@ file is deleted, is out of step, or was locked while hands were being recorded.
 
 ---
 
-## 10. Command-line tools
+## 11. Command-line tools
 
 | Command | What it does |
 | --- | --- |
@@ -545,7 +685,7 @@ file is deleted, is out of step, or was locked while hands were being recorded.
 
 ---
 
-## 11. Configuration
+## 12. Configuration
 
 `config/config.json`:
 
@@ -567,7 +707,7 @@ file is deleted, is out of step, or was locked while hands were being recorded.
 
 ---
 
-## 12. Logging
+## 13. Logging
 
 Everything goes to `logs/tracker.log` (rotating, 2 MB × 3): startup and
 shutdown, calibration, state changes, the player's hand at each street,
@@ -579,7 +719,7 @@ failure can be looked at afterwards.
 
 ---
 
-## 13. Troubleshooting
+## 14. Troubleshooting
 
 | Symptom | Fix |
 | --- | --- |
@@ -599,7 +739,7 @@ failure can be looked at afterwards.
 
 ---
 
-## 14. Project layout
+## 15. Project layout
 
 ```
 hold'em v2/
@@ -611,6 +751,8 @@ hold'em v2/
 ├── docker-compose.yml         the PostgreSQL 18 server
 ├── docs/DATABASE.md           architecture, setup, sharing, backup
 ├── scripts/                   db_backup, db_restore (.sh and .ps1)
+├── voice/                     spoken announcements (announcer, engines,
+│                              events, phrasing)
 │
 ├── config/
 │   ├── config.json            calibration + thresholds
@@ -640,14 +782,14 @@ hold'em v2/
 │
 ├── tools/                     setup_database, generate_templates,
 │                              audit_templates, backtest
-├── tests/                     243 tests
+├── tests/                     1,341 tests
 ├── data/poker_hands.xlsx
 └── logs/tracker.log
 ```
 
 ---
 
-## 15. How a card is actually read
+## 16. How a card is actually read
 
 Useful if you are debugging recognition.
 

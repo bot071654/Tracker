@@ -126,6 +126,9 @@ def root():
 
 def test_banner_shows_hides_and_dismisses_without_taking_focus(root):
     banner = ante_alert.AnteAlertBanner(root, sound=False)
+    # The banner shows nothing until it is told the tracker is running; the
+    # window does that in App.start().
+    banner.start()
     dismissed = []
     banner.on_dismiss = lambda: dismissed.append(True)
     banner.show(scenario_rules.ANTE, "If the player won the last round, play")
@@ -137,7 +140,9 @@ def test_banner_shows_hides_and_dismisses_without_taking_focus(root):
     root.update()
     assert not banner.visible and dismissed == [True]
     banner.show(scenario_rules.SKIP, "dealer won")
-    assert banner.title_var.get() == "SKIP THIS ROUND"
+    # The banner now shows one decision at a time under one set of labels
+    # (ui/decision_banner.DECISION_LABELS), and skip's is "SKIP ROUND".
+    assert banner.title_var.get() == "SKIP ROUND"
     banner.hide()
     banner.destroy()
 
@@ -145,8 +150,12 @@ def test_banner_shows_hides_and_dismisses_without_taking_focus(root):
 def test_app_shows_the_alert_from_the_users_rules(root, monkeypatch):
     import app as app_module
 
-    monkeypatch.setattr(app_module.AnteAlertBanner, "show",
-                        lambda self, action, reason: setattr(self, "shown", (action, reason)))
+    # show() now also takes the round the decision belongs to, so that a
+    # decision cannot outlive its round on screen.
+    monkeypatch.setattr(
+        app_module.AnteAlertBanner, "show",
+        lambda self, action, reason="", round_id=None: setattr(
+            self, "shown", (action, reason)))
     application = app_module.App(root)
     application.ante_banner.shown = None
     application.last_record = {"winner": scenario_rules.DEALER}
@@ -158,4 +167,7 @@ def test_app_shows_the_alert_from_the_users_rules(root, monkeypatch):
     for _ in range(3):
         application._update_ante_alert(payload)
     assert application.ante_banner.shown[0] == scenario_rules.SKIP
+    # One banner: the pre-round alert and the Scenario Engine share it, and
+    # the app exposes it under both names.
+    assert application.decision_banner is application.ante_banner
     application.on_close()

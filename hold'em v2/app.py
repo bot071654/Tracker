@@ -28,12 +28,18 @@ from poker import analysis
 from poker import scenarios as scenario_rules
 from poker.board_features import summarise
 from poker.hand_record import build_hand_record, hands_so_far
+from poker import teaching
 from recognition import result_panel, table_layout
 from recognition.dealer_watch import describe_slot
 from recognition.card_recognizer import TemplatesMissingError, template_status
 from tracker import Tracker, card_status, derive_state, read_table
 from ui.ante_alert import SHOW, AnteAlertBanner, AnteAlertLogic, preround_decision
-from ui.rule_windows import FlopRules, PreRoundRules
+from ui.decision_banner import DecisionBanner
+from voice.announcer import Announcer
+from voice.events import VoiceEvents
+from ui.rule_windows import (
+    FlopRules, PreRoundRules, TeachScenarioWindow,
+)
 from ui.scenario_panel import ScenarioPanel
 from ui.window_geometry import (
     BASE_CONTENT_HEIGHT, BASE_CONTENT_WIDTH, MIN_HEIGHT, MIN_WIDTH,
@@ -86,6 +92,30 @@ class App:
         # more than the last round, and only the last few are ever looked at.
         self.history = []
 
+        # What Teach / Correct Scenario captures from. The last update the
+        # tracker sent, kept so the button can freeze the scenario that was on
+        # screen when it was pressed rather than re-reading the table.
+        #
+        # `teach_session` is bumped every time tracking starts. CardMemory's
+        # generation - the round id - is not reset by stopping and starting, so
+        # the round id alone cannot tell a correction captured before a restart
+        # from one captured after it. The pair can.
+        self.latest_payload = None
+        self.teach_session = 0
+
+        # The voice. Announces what the tracker has already decided, on its own
+        # thread, and is fed from this window's event loop rather than from the
+        # tracker - so nothing about it can reach the recognition loop. With
+        # voice_enabled false the Announcer starts no thread and creates no
+        # speech engine, and VoiceEvents returns immediately.
+        self.announcer = Announcer(
+            enabled=bool(self.config.get("voice_enabled", True)),
+            rate=self.config.get("voice_rate"),
+            volume=self.config.get("voice_volume"),
+            voice=self.config.get("voice_name") or None,
+        )
+        self.voice_events = VoiceEvents(self.announcer)
+
         # Where this window may sit, measured now rather than assumed. The
         # tests pass a screen in to lay the window out for another laptop.
         self.screen = tuple(screen) if screen else screen_size(root)
@@ -127,13 +157,19 @@ class App:
         # hand. Off with config["ante_alert"] = False.
         self.ante_alert = None
         self.ante_banner = None
+        self.decision_banner = None
         if self.config.get("ante_alert", True):
             self.ante_alert = AnteAlertLogic(
                 empty_polls=int(self.config.get("ante_alert_empty_polls", 3)),
                 timeout=float(self.config.get("ante_alert_seconds", 25)))
-            self.ante_banner = AnteAlertBanner(
+            # ONE banner for every decision. AnteAlertBanner is DecisionBanner
+            # under its old name, so this is a single widget in a single
+            # place; self.ante_banner is kept as a second name for it because
+            # the pre-round path and its tests already use that name.
+            self.decision_banner = AnteAlertBanner(
                 root, sound=bool(self.config.get("ante_alert_sound", True)))
-            self.ante_banner.on_dismiss = self.ante_alert.dismiss
+            self.ante_banner = self.decision_banner
+            self.decision_banner.on_dismiss = self.ante_alert.dismiss
         self._poll_events()
         self._startup_checks()
         self._refresh_statistics()
@@ -195,6 +231,8 @@ class App:
                        command=self.edit_preround_rules),
             ttk.Button(buttons, text="Scenarios: after the flop",
                        command=self.edit_flop_rules),
+            ttk.Button(buttons, text="Teach / Correct Scenario",
+                       command=self.teach_scenario),
         ]
         self.button_columns = None
         self._grid_buttons(2)
@@ -213,6 +251,28 @@ class App:
                    command=self.fit_window_to_screen).pack(side="left", padx=(6, 0))
         ttk.Button(size_row, text="Reset",
                    command=self.reset_window_size).pack(side="left", padx=(2, 0))
+        # Voice controls. A row of its own, like the window-size row, so the
+        # button grid the layout tests measure is left as it was.
+        voice_row = ttk.Frame(frame)
+        voice_row.pack(fill="x", pady=(6, 0))
+        ttk.Label(voice_row, text="Voice:").pack(side="left")
+        self.voice_var = tk.StringVar(value=self.announcer.state())
+        ttk.Label(voice_row, textvariable=self.voice_var,
+                  width=10).pack(side="left", padx=(4, 0))
+        self.voice_buttons = {
+            "pause": ttk.Button(voice_row, text="Pause", width=7,
+                                command=self.pause_voice),
+            "resume": ttk.Button(voice_row, text="Resume", width=8,
+                                 command=self.resume_voice),
+            "stop": ttk.Button(voice_row, text="Stop", width=6,
+                               command=self.stop_voice),
+            "mute": ttk.Button(voice_row, text="Mute", width=7,
+                               command=self.toggle_mute),
+        }
+        for button in self.voice_buttons.values():
+            button.pack(side="left", padx=(4, 0))
+        self._refresh_voice_state()
+
         self.root.bind("<Control-minus>", lambda _event: self.shrink_window())
         self.root.bind("<Control-plus>", lambda _event: self.grow_window())
         self.root.bind("<Control-equal>", lambda _event: self.grow_window())
@@ -757,8 +817,16 @@ class App:
 
         self.set_message("")
         self.scenario_panel.reset()
+        # A new tracking session: nothing captured before it can be taught, and
+        # the scenario that was on screen when it stopped is not one now.
+        self.teach_session += 1
+        self.latest_payload = None
         if self.ante_alert is not None:
             self._apply_ante_event(self.ante_alert.reset())
+        if self.decision_banner is not None:
+            # Hidden, and with the last session's decision forgotten, until
+            # this session's scenario engine produces one.
+            self.decision_banner.start()
         self.tracker = Tracker(self.config, self.events)
         self.tracker.start()
         self.set_status("RUNNING")
@@ -770,8 +838,17 @@ class App:
         self.set_status("STOPPED")
         # A stopped tracker's last decision is not a decision about the table now.
         self.scenario_panel.reset()
+        # Nor is it something to teach a rule from. Dropped here as well as
+        # refused in the dialog, so a window left open cannot activate against
+        # a hand that finished before the tracker was stopped.
+        self.latest_payload = None
         if self.ante_alert is not None:
             self._apply_ante_event(self.ante_alert.reset())
+        if self.decision_banner is not None:
+            # Not just cleared: closed. Updates queued before the tracker
+            # stopped are still waiting to be drained, and the banner must
+            # refuse them rather than reappear over whatever is on screen now.
+            self.decision_banner.stop()
         self.start_button.config(state="normal")
         self.stop_button.config(state="disabled")
 
@@ -791,6 +868,41 @@ class App:
 
     def edit_flop_rules(self):
         FlopRules(self.root, on_change=self.reload_scenarios)
+
+    def teach_scenario(self):
+        """Correct the decision on screen, by writing one of the existing rules.
+
+        Freezes the last update the tracker sent - the one the banner was drawn
+        from - and hands it to the rule builder. Nothing is decided here and
+        nothing is saved here; the window builds an ordinary rule and only
+        writes it when someone presses Activate.
+        """
+        if not self.tracker.is_running():
+            messagebox.showinfo(
+                "Teach / Correct Scenario",
+                "The tracker is not running, so there is no current scenario "
+                "to correct.\n\nStart the tracker, wait for a decision, then "
+                "press this again.\n\nRules can still be written by hand in "
+                "the two Scenarios windows.",
+                parent=self.root)
+            return
+
+        snapshot, why = teaching.capture(
+            self.latest_payload, self.scenarios, self.teach_session,
+            self.last_record, self.history)
+        if snapshot is None:
+            messagebox.showinfo("Teach / Correct Scenario", why, parent=self.root)
+            return
+
+        TeachScenarioWindow(
+            self.root, snapshot, rules=self.scenarios,
+            # Asked again at Save & Test and at Activate. The round id is the
+            # tracker's own (CardMemory's generation), never one invented here.
+            is_current=lambda: snapshot.is_current(
+                self.teach_session,
+                (self.latest_payload or {}).get("round_id"),
+                self.tracker.is_running()),
+            on_change=self.reload_scenarios)
 
     def reload_scenarios(self):
         self.scenarios = scenario_rules.load()
@@ -966,6 +1078,12 @@ class App:
         self.scenario_panel.show_action(payload.get("action"))
         self._show_scenario(cards, statuses)
 
+        # The voice gets the same payload the window just drew, plus the
+        # progress already computed above - it evaluates nothing of its own.
+        # This only queues; the speaking happens on the voice thread.
+        self.voice_events.observe(payload, progress)
+        self._refresh_voice_state()
+
     def _show_panels(self, panels):
         """The result panel's two rows and how they fit the table."""
         if not hasattr(self, "panel_vars"):
@@ -1055,14 +1173,81 @@ class App:
         else:
             self.scenario_var.set("Waiting for the flop")
 
+    # -- voice controls ----------------------------------------------------
+    #
+    # Every one of these affects the voice only. The tracker, the card
+    # recognition, the scenario engine and the database carry on regardless -
+    # none of them can even see the Announcer.
+
+    def pause_voice(self):
+        self.announcer.pause()
+        self._refresh_voice_state()
+
+    def resume_voice(self):
+        self.announcer.resume()
+        self._refresh_voice_state()
+
+    def stop_voice(self):
+        self.announcer.stop()
+        self._refresh_voice_state()
+
+    def toggle_mute(self):
+        if self.announcer.is_muted():
+            self.announcer.unmute()
+        else:
+            self.announcer.mute()
+        self._refresh_voice_state()
+
+    def _refresh_voice_state(self):
+        """Put the voice's state on screen. Called on every update; cheap."""
+        if not hasattr(self, "voice_var"):
+            return
+        state = self.announcer.state()
+        self.voice_var.set(state)
+        error = self.announcer.error
+        if error and self.message_var.get() == "":
+            self.set_message("Voice unavailable: %s" % error)
+        enabled = self.announcer.enabled
+        for name, button in self.voice_buttons.items():
+            button.config(state="normal" if enabled else "disabled")
+        if enabled:
+            self.voice_buttons["mute"].config(
+                text="Unmute" if self.announcer.is_muted() else "Mute")
+
+    def _show_engine_decision(self, payload):
+        """Put the Scenario Engine's current decision on the one banner.
+
+        Only while the pre-round alert is not using it: betting opening is its
+        own moment, and ANTE NOW should not be shoved aside by the WAIT that
+        follows a second later.
+
+        The decision and the round come from the payload the window was given
+        - this reads them, it does not work anything out. The banner itself
+        ignores a decision equal to the one already showing, so a decision
+        repeated on every poll is drawn once.
+        """
+        if self.decision_banner is None or not self.tracker.is_running():
+            return
+        if self.ante_alert is not None and self.ante_alert.showing:
+            return
+        scenario = payload.get("scenario") or {}
+        self.decision_banner.show(scenario.get("decision"),
+                                  scenario.get("reason") or "",
+                                  payload.get("round_id"))
+
     def _update_ante_alert(self, payload):
         """Show or hide the ANTE alert for this update. Never touches the game."""
+        # Kept whether or not the ANTE alert is switched on: Teach / Correct
+        # Scenario captures from this, and it is the payload the banner was
+        # drawn from, so the two cannot disagree about what was on screen.
+        self.latest_payload = payload
         if self.ante_alert is None:
             return
         event = self.ante_alert.observe(
             payload.get("state"), payload.get("seen"),
             lambda: preround_decision(self.scenarios, self.last_record, self.history))
         self._apply_ante_event(event)
+        self._show_engine_decision(payload)
 
     def _apply_ante_event(self, event):
         if not event or self.ante_banner is None:
@@ -1088,12 +1273,20 @@ class App:
                record["player_hand"], record["dealer_hand"])
         )
         self.set_message(payload.get("excel_error") or "")
+        # The stored row is the same one the database got, so the voice cannot
+        # announce a result that disagrees with what was recorded.
+        self.voice_events.announce_result(record)
 
     # -- shutdown ----------------------------------------------------------
 
     def on_close(self):
         if self.tracker.is_running():
             self.tracker.stop()
+        if self.decision_banner is not None:
+            self.decision_banner.stop()
+        # Ends the voice thread and releases the speech engine, so nothing is
+        # left running to keep the process alive.
+        self.announcer.shutdown()
         # Remember where this machine's user put the window, so the next run
         # opens where they left it rather than back at the default corner.
         self._save_window_state()

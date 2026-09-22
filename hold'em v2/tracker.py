@@ -1309,6 +1309,10 @@ class Tracker:
 
         self._emit("update", {
             "state": state,
+            # CardMemory's generation: the round identity the dealer watch,
+            # the scenario engine and the diagnostics already use. Exposed
+            # here so a consumer does not have to invent a second one.
+            "round_id": self.memory.generation,
             "cards": cards,
             "seen": seen,
             "reads": reads,

@@ -67,6 +67,17 @@ def streak_choice(streak):
 ANTE, SKIP = "ante", "skip"
 PLAY, FOLD = "play", "fold"
 
+# Keys on a rule that are not part of the question it asks. "action" is its
+# answer and "name" is its label; "taught" is the note poker/teaching.py leaves
+# on a rule created from a live hand - which round it came from, what the
+# decision was before the correction, and what it was corrected to.
+#
+# They are listed here because two rules asking the same question must compare
+# equal whether or not one of them carries that note. Without this, a taught
+# rule and the identical rule typed into the rule builder would look like
+# different rules, and the duplicate check would let both be added.
+METADATA_KEYS = ("action", "name", "taught")
+
 PREROUND_ACTIONS = [ANTE, SKIP]
 FLOP_ACTIONS = [PLAY, FOLD]
 
@@ -238,8 +249,13 @@ def add_standard_rules(scenarios, section=None):
 
 def _same_question(one, other):
     """True when two rules ask about the same situation, whatever they do."""
-    keys = (set(one) | set(other)) - {"action", "name"}
+    keys = (set(one) | set(other)) - set(METADATA_KEYS)
     return all(one.get(key) == other.get(key) for key in keys)
+
+
+def same_question(one, other):
+    """Public name for the above, for the rule builder and for teaching."""
+    return _same_question(one, other)
 
 
 # -- applying rules -----------------------------------------------------------
@@ -262,6 +278,17 @@ def _matches_condition(condition, features):
         return features.get("highest_hole") in HIGH_CARDS
     logger.warning("Unknown scenario condition: %r", condition)
     return False
+
+
+def condition_holds(condition, features):
+    """Does this flop condition hold for this situation? Public name for the above.
+
+    poker/teaching.py asks it of every choice in CONDITION_CHOICES to find the
+    ones true of the hand on screen, so the scopes it offers are the ones this
+    engine can actually evaluate - answered by the engine's own test rather
+    than by a second copy of it.
+    """
+    return _matches_condition(condition, features)
 
 
 def player_win_streak(history):

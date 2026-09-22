@@ -31,6 +31,126 @@ def as_slots(row):
     }
 
 
+def walk(scenarios, rows):
+    """Each recorded hand with the decision these rules would have given it.
+
+    The walk `replay` has always done, pulled out so that it can be run twice
+    - once for the saved rules and once for a proposed set - and the two lined
+    up hand by hand. Nothing about the order or the decisions changed in the
+    extraction: `replay` below is the same tally built from these items.
+
+    Each hand is judged on the rounds *recorded* before it, never on what the
+    rules decided about them, so the two walks stay comparable row by row: a
+    different rule set cannot shift the history the next hand sees.
+    """
+    previous = None
+    # The rounds already walked, most recent first, so that a rule about
+    # consecutive wins is scored here the same way the tracker applies it.
+    history = []
+    for row in rows:
+        slots = as_slots(row)
+        action, rule = rules.decide_preround(scenarios, previous, history)
+        item = {
+            "row": row,
+            "result": row.get("winner") or "unknown",
+            "preround_action": action, "preround_rule": rule,
+            "features": None, "flop_action": None, "flop_rule": None,
+        }
+        previous = row
+        history.insert(0, row)
+
+        if action != rules.SKIP:
+            features = describe_flop(
+                [slots["player_1"], slots["player_2"]],
+                [slots["flop_1"], slots["flop_2"], slots["flop_3"]],
+            )
+            item["features"] = features
+            if features is not None:
+                item["flop_action"], item["flop_rule"] = rules.decide_flop(
+                    scenarios, features)
+        yield item
+
+
+def outcome(item):
+    """The one thing that happened to this hand: skip, fold, or play to the end.
+
+    What a comparison is actually about - two rule sets differ on a hand when
+    this differs, whichever rule got them there.
+    """
+    if item["preround_action"] == rules.SKIP:
+        return rules.SKIP
+    if item["features"] is None:
+        return "unreadable"
+    return item["flop_action"]
+
+
+def compare(current, proposed, rows):
+    """What changes if `proposed` is used instead of `current`. Saves nothing.
+
+    Both rule sets are walked over the same recorded hands and lined up. The
+    caller gets the hands whose outcome differs, with the rule that produced
+    each side, so "hands affected" is a list it can show rather than a number
+    it has to trust.
+    """
+    before = list(walk(current, rows))
+    after = list(walk(proposed, rows))
+    changed = []
+    for old, new in zip(before, after):
+        if outcome(old) == outcome(new):
+            continue
+        changed.append({
+            "row": old["row"],
+            "from": outcome(old), "to": outcome(new),
+            "from_rule": (old["flop_rule"] or old["preround_rule"] or {}).get("name"),
+            "to_rule": (new["flop_rule"] or new["preround_rule"] or {}).get("name"),
+            "result": old["result"],
+        })
+    return {
+        "hands": len(rows),
+        "changed": changed,
+        "before": Counter(outcome(item) for item in before),
+        "after": Counter(outcome(item) for item in after),
+        "before_results": {name: Counter(
+            item["result"] for item in before if outcome(item) == name)
+            for name in {outcome(item) for item in before}},
+        "after_results": {name: Counter(
+            item["result"] for item in after if outcome(item) == name)
+            for name in {outcome(item) for item in after}},
+    }
+
+
+def matches(rule, section, rows):
+    """How many recorded hands the rule matches, on its own, at any priority.
+
+    Deliberately not "how often would it fire": a rule sitting below something
+    broader never fires and still describes a situation that happens. Asking
+    the question this way tells "no recorded hand ever looks like this" apart
+    from "something above it always gets there first", which are different
+    problems with different fixes.
+
+    Answered by handing decide_* a rule set containing only this rule, so the
+    match is the engine's own and not a second reading of the condition.
+    """
+    probe = {section: {"default": "__no_match__", "rules": [rule]}}
+    count = 0
+    previous, history = None, []
+    for row in rows:
+        if section == "preround":
+            if rules.decide_preround(probe, previous, history)[1] is not None:
+                count += 1
+            previous = row
+            history.insert(0, row)
+            continue
+        slots = as_slots(row)
+        features = describe_flop(
+            [slots["player_1"], slots["player_2"]],
+            [slots["flop_1"], slots["flop_2"], slots["flop_3"]],
+        )
+        if features is not None and rules.decide_flop(probe, features)[1] is not None:
+            count += 1
+    return count
+
+
 def replay(scenarios, rows):
     """Walk the recorded hands in order, applying the rules to each."""
     tally = {
@@ -43,18 +163,11 @@ def replay(scenarios, rows):
         "rules_used": Counter(),
     }
 
-    previous = None
-    # The rounds already walked, most recent first, so that a rule about
-    # consecutive wins is scored here the same way the tracker applies it.
-    history = []
-    for row in rows:
-        slots = as_slots(row)
-        result = row.get("winner") or "unknown"
+    for item in walk(scenarios, rows):
+        result = item["result"]
+        rule = item["preround_rule"]
 
-        action, rule = rules.decide_preround(scenarios, previous, history)
-        previous = row
-        history.insert(0, row)
-        if action == rules.SKIP:
+        if item["preround_action"] == rules.SKIP:
             tally["skipped"] += 1
             tally["skipped_results"][result] += 1
             if rule:
@@ -62,18 +175,13 @@ def replay(scenarios, rows):
             continue
 
         tally["played"] += 1
-        features = describe_flop(
-            [slots["player_1"], slots["player_2"]],
-            [slots["flop_1"], slots["flop_2"], slots["flop_3"]],
-        )
-        if features is None:
+        if item["features"] is None:
             tally["no_features"] += 1
             continue
 
-        action, rule = rules.decide_flop(scenarios, features)
-        if rule:
-            tally["rules_used"][rule["name"]] += 1
-        if action == rules.FOLD:
+        if item["flop_rule"]:
+            tally["rules_used"][item["flop_rule"]["name"]] += 1
+        if item["flop_action"] == rules.FOLD:
             tally["folded"] += 1
             tally["folded_results"][result] += 1
         else:
