@@ -34,8 +34,8 @@ from recognition.dealer_watch import describe_slot
 from recognition.card_recognizer import TemplatesMissingError, template_status
 from tracker import Tracker, card_status, derive_state, read_table
 from ui.ante_alert import SHOW, AnteAlertBanner, AnteAlertLogic, preround_decision
-from ui.decision_banner import DecisionBanner
-from voice.announcer import Announcer
+from ui.decision_banner import DecisionBanner, spoken
+from voice.announcer import TRANSIENT, Announcer
 from voice.events import VoiceEvents
 from ui.rule_windows import (
     FlopRules, PreRoundRules, TeachScenarioWindow,
@@ -102,6 +102,9 @@ class App:
         # from one captured after it. The pair can.
         self.latest_payload = None
         self.teach_session = 0
+        # The last decision the voice actually said. Not the same thing as the
+        # one on the banner: see _announce_decision.
+        self._spoken_decision = None
 
         # The voice. Announces what the tracker has already decided, on its own
         # thread, and is fed from this window's event loop rather than from the
@@ -114,7 +117,10 @@ class App:
             volume=self.config.get("voice_volume"),
             voice=self.config.get("voice_name") or None,
         )
-        self.voice_events = VoiceEvents(self.announcer)
+        self.voice_events = VoiceEvents(
+            self.announcer,
+            announce_cards=bool(self.config.get("voice_announce_cards",
+                                                False)))
 
         # Where this window may sit, measured now rather than assumed. The
         # tests pass a screen in to lay the window out for another laptop.
@@ -821,6 +827,7 @@ class App:
         # the scenario that was on screen when it stopped is not one now.
         self.teach_session += 1
         self.latest_payload = None
+        self._spoken_decision = None
         if self.ante_alert is not None:
             self._apply_ante_event(self.ante_alert.reset())
         if self.decision_banner is not None:
@@ -842,6 +849,14 @@ class App:
         # refused in the dialog, so a window left open cannot activate against
         # a hand that finished before the tracker was stopped.
         self.latest_payload = None
+        # And nothing queued about this session should still be said. The
+        # announcer's queue outlives the tracker exactly as the window's event
+        # queue does, so without this a decision from the round that was in
+        # progress would be spoken over whatever happens next - and after a
+        # restart it would be spoken about the new session.
+        self.announcer.stop()
+        self._spoken_decision = None
+        self._refresh_voice_state()
         if self.ante_alert is not None:
             self._apply_ante_event(self.ante_alert.reset())
         if self.decision_banner is not None:
@@ -969,10 +984,29 @@ class App:
     # -- event pump --------------------------------------------------------
 
     def _poll_events(self):
+        """Drain the tracker's updates onto the window. Never stops polling.
+
+        The reschedule below is the whole event loop of the user interface: the
+        banner, the card table, the voice and the saved-hand line are all fed
+        from here. It used to sit after a bare `except queue.Empty`, so any
+        other exception raised while handling one event escaped before the
+        reschedule ran and the loop simply ended. Tk printed the traceback to
+        stderr - invisible to anyone who starts the program from a shortcut -
+        and the window carried on looking perfectly alive while it silently
+        stopped showing anything the tracker said, including every decision the
+        voice announces.
+
+        One bad event is therefore logged and dropped, and the next one is
+        still handled.
+        """
         try:
             while True:
                 kind, payload = self.events.get_nowait()
-                self._handle_event(kind, payload)
+                try:
+                    self._handle_event(kind, payload)
+                except Exception:               # noqa: BLE001 - see above
+                    logger.exception(
+                        "Could not handle a %r event; carrying on", kind)
         except queue.Empty:
             pass
         self.root.after(200, self._poll_events)
@@ -1231,9 +1265,9 @@ class App:
         if self.ante_alert is not None and self.ante_alert.showing:
             return
         scenario = payload.get("scenario") or {}
-        self.decision_banner.show(scenario.get("decision"),
-                                  scenario.get("reason") or "",
-                                  payload.get("round_id"))
+        self._publish_decision(scenario.get("decision"),
+                               scenario.get("reason") or "",
+                               payload.get("round_id"))
 
     def _update_ante_alert(self, payload):
         """Show or hide the ANTE alert for this update. Never touches the game."""
@@ -1253,9 +1287,114 @@ class App:
         if not event or self.ante_banner is None:
             return
         if event[0] == SHOW:
-            self.ante_banner.show(event[1], event[2])
+            self._publish_decision(
+                event[1], event[2],
+                (self.latest_payload or {}).get("round_id"))
         else:
             self.ante_banner.hide()
+
+    def _publish_decision(self, decision, reason="", round_id=None):
+        """The one place a decision reaches the screen and the voice.
+
+        Both consume the same `decision` argument, in this order, in this
+        method. That is the whole of the single-source-of-truth rule and it is
+        structural: there is no second call site where the banner could be
+        given one value and the voice another, and the voice never evaluates
+        anything - it is handed what the banner was handed.
+
+            scenario/pre-round engine -> canonical decision
+                                      -> DecisionBanner.show
+                                      -> _announce_decision
+
+        Logged in three stages so the log can never confuse what was decided,
+        what was displayed and what was said. Only on a change: the tracker
+        polls about five times a second, and logging a stable decision at that
+        rate would bury everything else.
+        """
+        if self.decision_banner is None:
+            return False
+        changed = self.decision_banner.show(decision, reason, round_id)
+        if changed:
+            logger.info("[DECISION] canonical=%s round=%s", decision, round_id)
+            logger.info("[BANNER] displaying=%s",
+                        self.decision_banner.text or "(nothing)")
+        self._announce_decision(decision, changed, round_id)
+        return changed
+
+    def _announce_decision(self, decision, changed, round_id):
+        """Say the decision the banner has just put on screen. Display only.
+
+        Nothing here works anything out. `decision` is the value the banner was
+        given and `changed` is the banner's own answer to "is this different
+        from what is already showing" - so the voice says what the banner says,
+        when the banner says it, and at no other time.
+
+        That is also the whole of the de-duplication. The tracker polls about
+        five times a second and re-reports the same decision every time;
+        DecisionBanner.show returns True only when the displayed decision
+        actually changes, and it already drops the decision when the round id
+        changes, so WAIT, WAIT, WAIT is said once and WAIT, PLAY, WAIT is said
+        three times. No key is passed for the same reason: a key would make the
+        second WAIT a duplicate of the first, which is not what a person
+        watching the banner would expect to hear.
+
+        TRANSIENT with the round id, so a decision queued behind a long phrase
+        is dropped rather than spoken about a round that has already finished -
+        see Announcer._should_speak.
+        """
+        if not changed:
+            return
+        phrase = spoken(decision)
+        if decision is None or not phrase:
+            logger.info("[VOICE] decision cleared (round %s) - nothing to say",
+                        round_id)
+            self._spoken_decision = None
+            return
+        if decision == self._spoken_decision:
+            # The banner drops its decision whenever the round id changes, and
+            # the round id is CardMemory's generation, which is bumped on every
+            # clear rather than once per hand. Live it ticked four times in six
+            # seconds between two real rounds, and each tick made the banner
+            # report a change - so the voice said "Wait, Wait, Wait, Wait"
+            # while the decision had not moved at all.
+            #
+            # The banner is right to redraw; it is showing the current round.
+            # The voice is answering a different question - has the decision
+            # changed - so it keeps its own memory of what it last said. A
+            # round that genuinely brings a different decision still announces,
+            # and starting or stopping the tracker forgets this.
+            logger.info("[VOICE] duplicate decision=%s -> suppressed", decision)
+            return
+        # topic="decision": there is only one current decision, so a newer one
+        # replaces any still waiting. Without it the announcement was tied to
+        # round_id - CardMemory's generation - and was discarded unspoken
+        # whenever the generation ticked, which it does several times between
+        # real hands. That is why the log said accepted=True and nothing was
+        # heard.
+        accepted = self.announcer.announce(phrase, round_id=round_id,
+                                           kind=TRANSIENT, topic="decision")
+        self._spoken_decision = decision
+        # Logged on every change, because until now nothing recorded what the
+        # voice was asked to say. "The voice is not working" could mean the
+        # decision never changed, the phrase was refused, or the engine was
+        # dead, and the log could not tell those three apart.
+        logger.info(
+            "[VOICE] canonical=%s phrase=%r accepted=%s round=%s state=%s%s",
+            decision, phrase, accepted, round_id, self.announcer.state(),
+            "" if accepted else " - %s" % self._why_not_spoken())
+
+    def _why_not_spoken(self):
+        """Why announce() refused, in the announcer's own terms."""
+        voice = self.announcer
+        if not voice.enabled:
+            return "the voice is switched off"
+        if voice.error:
+            return "the engine is unavailable: %s" % voice.error
+        if voice.is_paused():
+            return "paused"
+        if voice.is_muted():
+            return "muted"
+        return "the queue was full, or it was already said this round"
 
     def _show_saved(self, payload):
         record, row = payload["record"], payload["row"]

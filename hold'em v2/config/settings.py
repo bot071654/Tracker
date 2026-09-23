@@ -110,6 +110,11 @@ DEFAULT_CONFIG = {
     # "zira" or "david". Empty means the system default. A name that matches
     # nothing logs a warning and falls back rather than failing.
     "voice_name": "",
+    # Read the table out as well: your two cards, the flop, the turn, the
+    # river and the hand you are holding, then who won. Off, because the
+    # voice's job is the decision on the green banner and a running commentary
+    # talks over it. Set true to hear the cards again.
+    "voice_announce_cards": False,
 }
 
 

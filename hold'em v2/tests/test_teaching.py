@@ -173,7 +173,24 @@ def test_before_the_flop_with_no_finished_round_there_is_nothing_to_teach():
     taken, why = teaching.capture(
         payload(cards={}, statuses={}, state="WAITING"), EXAMPLE, session=1)
     assert taken is None
-    assert "No decision" in why
+    assert "Teaching is available once a completed scenario decision" in why
+
+
+def test_that_refusal_says_why_there_is_no_finished_round():
+    """The message that sent somebody hunting.
+
+    It said "there is no finished round" and stopped, which reads as "you have
+    not played one yet". The other way to have none is for the recorded hands
+    not to have loaded - which is what had actually happened: the database was
+    unreachable, so the window started with an empty history and every attempt
+    to teach was refused. The message now names that possibility.
+    """
+    _, why = teaching.capture(
+        payload(cards={}, statuses={}, state="WAITING"), EXAMPLE, session=1)
+    assert "flop is not out" in why              # why there is no flop decision
+    assert "no finished round" in why            # why there is no pre-round one
+    assert "database was unreachable" in why     # and the reason people hit
+    assert "message line" in why                 # where to look
 
 
 def test_before_the_flop_a_finished_round_gives_a_preround_scenario():
@@ -717,3 +734,102 @@ def test_the_live_configuration_file_is_never_touched_by_these_tests():
     assert os.path.exists(sr.SCENARIOS_PATH)
     live = sr.load()
     assert set(live) == {"preround", "flop"}
+
+
+# -- which states can be taught, and which cannot -----------------------------
+#
+# The live report was "Teach / Correct Scenario is not working": the window
+# said Decision: WAIT and the button answered that there was no finished round.
+# That answer was correct for the state it was in, and the state was itself a
+# symptom - the database was unreachable, so no recorded hands had loaded and
+# the pre-round rules had nothing behind them. These pin the three states down
+# so the difference between "not teachable yet" and "not working" is testable.
+
+def waiting_payload(round_id=5):
+    """The table between hands: nothing dealt, nothing settled."""
+    return payload(cards={}, statuses={}, state="WAITING", round_id=round_id,
+                   decision=se.WAIT)
+
+
+def test_wait_with_no_history_at_all_is_refused_with_a_reason():
+    """Case A: no flop decision and no finished round behind it."""
+    taken, why = teaching.capture(waiting_payload(), EXAMPLE, session=1)
+    assert taken is None
+    assert "Teaching is available once" in why
+
+
+def test_wait_with_a_finished_round_teaches_the_preround_decision():
+    """Case C, and the one the report was really about.
+
+    WAIT on the banner does not mean there is nothing to teach. The flop
+    decision is not ready, but the pre-round rules have already decided
+    something about the round that is starting, and that is a completed
+    decision the teaching model can represent.
+    """
+    history = [record(winner="Dealer")]
+    taken, why = teaching.capture(waiting_payload(), EXAMPLE, session=1,
+                                  previous=history[0], history=history)
+    assert taken is not None, why
+    assert taken.section == teaching.PREROUND
+    assert taken.action in sr.PREROUND_ACTIONS
+    assert taken.matched_rule is not None or taken.matched_index is None
+    assert teaching.available_scopes(taken)
+
+
+def test_wait_teaches_the_rule_the_preround_engine_actually_used():
+    """Not a decision worked out for teaching - decide_preround's own."""
+    history = [record(winner="Dealer")]
+    rules_with_skip = rules(preround=[
+        sr.preround_rule(sr.ANY, sr.ANY, sr.SKIP, previous_winner=sr.DEALER,
+                         name="dealer won -> skip")])
+    taken, _ = teaching.capture(waiting_payload(), rules_with_skip, session=1,
+                                previous=history[0], history=history)
+    action, rule = sr.decide_preround(rules_with_skip, history[0], history)
+    assert taken.action == action == sr.SKIP
+    assert taken.matched_rule["name"] == rule["name"] == "dealer won -> skip"
+    assert taken.priority() == "#1"
+
+
+def test_an_unsettled_flop_card_is_refused_even_with_a_finished_round():
+    """Case A2: the flop is arriving, so neither decision is ready.
+
+    It must not silently fall back to the pre-round decision here - the person
+    is looking at a flop that is half-read, and teaching about the round's
+    opening would be teaching about a different moment.
+    """
+    statuses = {slot: "CONFIRMED" for slot in SETTLED}
+    statuses["flop_3"] = "CONFIRMING"
+    history = [record(winner="Dealer")]
+    taken, why = teaching.capture(payload(statuses=statuses), EXAMPLE,
+                                  session=1, previous=history[0],
+                                  history=history)
+    assert taken is None
+    assert "flop_3" in why
+
+
+@pytest.mark.parametrize("engine_decision", [se.PLAY, se.DONT_PLAY])
+def test_a_completed_flop_decision_can_be_taught(engine_decision):
+    """Case B, for both of the engine's completed answers."""
+    taken, why = teaching.capture(
+        payload(decision=engine_decision), EXAMPLE, session=4)
+    assert taken is not None, why
+    assert taken.section == teaching.FLOP
+    assert taken.engine_decision == engine_decision
+    assert taken.hand == "Pair"
+    assert taken.action in sr.FLOP_ACTIONS
+    assert teaching.available_scopes(taken)
+
+
+def test_the_snapshot_matches_what_the_banner_was_showing():
+    """The same cards, stage, round and decision - not a recalculation."""
+    live = payload(decision=se.DONT_PLAY, round_id=99)
+    taken, _ = teaching.capture(live, EXAMPLE, session=7)
+    assert taken.round_id == live["round_id"] == 99
+    assert taken.session == 7
+    assert taken.stage == live["state"]
+    assert taken.engine_decision == live["scenario"]["decision"]
+    for slot, card in live["cards"].items():
+        assert taken.cards[slot] == card
+    action, rule = sr.decide_flop(EXAMPLE, taken.features)
+    assert taken.action == action
+    assert (taken.matched_rule or {}).get("name") == (rule or {}).get("name")

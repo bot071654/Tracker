@@ -22,6 +22,11 @@ suppressed - a revision is news.
 
 WHAT IS ANNOUNCED
 
+    Only when `announce_cards` is on. The window turns it off - the voice
+    announces the decision on the banner and nothing else, because a
+    commentary on every card talks over the one thing worth hearing. See
+    config/settings.py, voice_announce_cards.
+
     new round        nothing said; the announcer is told to forget the last
     player cards     once both hole cards are settled
     flop             once all three are settled
@@ -73,8 +78,14 @@ class VoiceEvents:
     announcer's memory of what it has said.
     """
 
-    def __init__(self, announcer):
+    def __init__(self, announcer, announce_cards=True):
         self.announcer = announcer
+        # Whether to read the table out as well as the decision. The window
+        # passes config["voice_announce_cards"], which is off: the voice is
+        # there to say what the banner says, and a running commentary on every
+        # card talks over it. The default here stays True so that the tests
+        # below, which are about the reading itself, keep exercising it.
+        self.announce_cards = bool(announce_cards)
         self._round_id = None
 
     # -- the tracker's "update" event -----------------------------------------
@@ -89,7 +100,7 @@ class VoiceEvents:
         has already computed it for the Player Hand line, so it is passed in
         rather than worked out again here. The voice evaluates nothing.
         """
-        if not self.announcer.enabled:
+        if not self.announcer.enabled or not self.announce_cards:
             return
         try:
             self._observe(payload, progress or {})
@@ -148,6 +159,8 @@ class VoiceEvents:
         already moved on - the result is the one thing worth hearing late.
         """
         if not self.announcer.enabled or not record:
+            return
+        if not self.announce_cards:
             return
         try:
             text = phrasing.say_winner(

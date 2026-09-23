@@ -73,17 +73,25 @@ SHUTDOWN = object()        # sentinel put on the queue to end the worker
 class Announcement:
     """One thing to say, and enough about it to decide whether to still say it."""
 
-    __slots__ = ("text", "key", "round_id", "kind")
+    __slots__ = ("text", "key", "round_id", "kind", "topic")
 
-    def __init__(self, text, key=None, round_id=None, kind=TRANSIENT):
+    def __init__(self, text, key=None, round_id=None, kind=TRANSIENT,
+                 topic=None):
         self.text = text
         self.key = key
         self.round_id = round_id
         self.kind = kind
+        # A topic is a thing there is only ever one current answer to - the
+        # decision on the banner is the only one so far. Queueing a new
+        # announcement on a topic replaces any earlier one still waiting, so
+        # what gets said is the latest answer rather than a queue of
+        # superseded ones. See announce().
+        self.topic = topic
 
     def __repr__(self):
-        return "Announcement(%r, key=%r, round=%r, %s)" % (
-            self.text, self.key, self.round_id, self.kind)
+        return "Announcement(%r, key=%r, round=%r, %s%s)" % (
+            self.text, self.key, self.round_id, self.kind,
+            ", topic=%r" % self.topic if self.topic else "")
 
 
 class Announcer:
@@ -199,7 +207,8 @@ class Announcer:
 
     # -- announcing ------------------------------------------------------------
 
-    def announce(self, text, key=None, round_id=None, kind=TRANSIENT):
+    def announce(self, text, key=None, round_id=None, kind=TRANSIENT,
+                 topic=None):
         """Queue something to say. Returns whether it was accepted.
 
         Never blocks and never raises. Refused when voice is off, shut down,
@@ -220,7 +229,13 @@ class Announcer:
             if round_id is None:
                 round_id = self._round_id
 
-        item = Announcement(text, key=key, round_id=round_id, kind=kind)
+        item = Announcement(text, key=key, round_id=round_id, kind=kind,
+                            topic=topic)
+        if topic is not None:
+            # Only the newest answer on a topic is worth saying.
+            self._discard(lambda queued: queued.topic == topic)
+        logger.info("[VOICE] enqueue phrase=%r round=%s kind=%s topic=%s",
+                    text, round_id, kind, topic)
         if not self._put(item):
             with self._lock:
                 self._spoken.discard(key)  # it was not said, so do not remember it
@@ -394,11 +409,24 @@ class Announcer:
         return removed
 
     def _discard_stale(self):
-        """Drop transient announcements from a round that has moved on."""
+        """Drop transient announcements from a round that has moved on.
+
+        An announcement on a topic is exempt. The round id is CardMemory's
+        generation, which is bumped on every clear rather than once per hand -
+        live it ticked four times in six seconds - and a phrase queued for
+        round N was being thrown away unspoken the moment it ticked to N+1.
+        That is how the decision announcements came to be accepted and never
+        heard: they were queued, the generation moved, and they were discarded
+        before the worker reached them.
+
+        A topic does not need the round to keep it honest, because queueing a
+        newer answer on the same topic already removes the older one.
+        """
         with self._lock:
             current = self._round_id
         return self._discard(
-            lambda item: item.kind == TRANSIENT
+            lambda item: item.topic is None
+            and item.kind == TRANSIENT
             and item.round_id is not None
             and item.round_id != current)
 
@@ -421,15 +449,46 @@ class Announcer:
                 return
             if self._worker is not None and self._worker.is_alive():
                 return
+            # Any sentinel still queued was meant for a worker that is gone,
+            # and this one would read it and stop before saying anything.
+            # _discard deliberately preserves sentinels - it is used to drop
+            # announcements without losing a pending shutdown - so they have to
+            # be cleared here instead.
+            self._drop_sentinels()
             self._worker = threading.Thread(
                 target=self._run, name="voice", daemon=True)
             self._worker.start()
+
+    def _drop_sentinels(self):
+        """Remove SHUTDOWN sentinels that no worker is going to act on."""
+        kept = []
+        try:
+            while True:
+                item = self._queue.get_nowait()
+                self._queue.task_done()
+                if item is not SHUTDOWN:
+                    kept.append(item)
+        except queue.Empty:
+            pass
+        for item in kept:
+            try:
+                self._queue.put_nowait(item)
+            except queue.Full:              # pragma: no cover - it just fitted
+                break
 
     def _stop_worker(self, timeout=3.0):
         with self._lock:
             worker = self._worker
             self._worker = None
         if worker is None:
+            return
+        if not worker.is_alive():
+            # It ended on its own, which is what a worker does when the engine
+            # could not be started: _run sets the error and returns. There is
+            # nobody left to read a sentinel, and one queued here would sit
+            # there until the NEXT worker read it and exited immediately - so
+            # the voice would report IDLE, announce() would keep returning
+            # True, and nothing would ever be spoken again.
             return
         try:
             self._queue.put_nowait(SHUTDOWN)
@@ -454,19 +513,30 @@ class Announcer:
             self._discard(lambda item: True)
             return
 
+        logger.info("[VOICE-WORKER] started, engine=%s",
+                    type(self._engine).__name__)
         while True:
             item = self._queue.get()
             try:
                 if item is SHUTDOWN:
+                    logger.info("[VOICE-WORKER] shutdown sentinel")
                     break
+                logger.info("[VOICE-WORKER] dequeued phrase=%r", item.text)
                 if not self._should_speak(item):
                     continue
                 with self._lock:
                     self._speaking = True
                 try:
+                    logger.info("[VOICE-WORKER] engine.speak phrase=%r",
+                                item.text)
+                    started = time.time()
                     self._engine.speak(item.text)
+                    logger.info(
+                        "[VOICE-WORKER] completed phrase=%r after %.2fs",
+                        item.text, time.time() - started)
                 except Exception as exc:    # noqa: BLE001 - one bad phrase only
-                    logger.warning("[VOICE] could not speak %r: %s", item.text, exc)
+                    logger.exception("[VOICE-WORKER] ERROR phrase=%r error=%s",
+                                     item.text, exc)
                 finally:
                     with self._lock:
                         self._speaking = False
@@ -486,9 +556,14 @@ class Announcer:
                 return False
             if self._paused or self._muted:
                 return False
-            if (item.kind == TRANSIENT and item.round_id is not None
+            if (item.topic is None
+                    and item.kind == TRANSIENT and item.round_id is not None
                     and self._round_id is not None
                     and item.round_id != self._round_id):
                 self._dropped += 1
+                logger.info(
+                    "[VOICE-WORKER] DROPPED phrase=%r - queued for round %s, "
+                    "the announcer is now on round %s",
+                    item.text, item.round_id, self._round_id)
                 return False
         return True

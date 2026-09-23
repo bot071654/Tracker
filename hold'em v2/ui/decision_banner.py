@@ -112,6 +112,44 @@ def label_for(decision):
     return DECISION_LABELS.get(decision)
 
 
+# What each decision is SAID as. Keyed on exactly the same constants as
+# DECISION_LABELS above, because the banner and the voice must be answering
+# the same question about the same value - the banner is the single source of
+# truth and this is only its translation into speech.
+#
+# Written out rather than derived from the labels. Lowercasing "ANTE NOW"
+# gives "Ante now", and the ante is called for by name: "Ante" is the word.
+# The others keep the banner's own wording, so nobody has to learn two
+# vocabularies. A test asserts every label has an entry here, so a decision
+# added to one table cannot be missed in the other.
+#
+# This lives here rather than in voice/phrasing.py because the decision values
+# are the game's own words - one of them is the ante - and voice/ is checked by
+# test_the_voice_package_cannot_touch_the_game for exactly those words. That
+# guard is worth more than the convenience of putting this beside the other
+# phrasing, and the banner already owns the labels.
+SPOKEN_DECISIONS = {
+    scenario_rules.ANTE: "Ante",
+    scenario_rules.SKIP: "Skip round",
+    scenario_rules.PLAY: "Play now",
+    scenario_rules.FOLD: "Fold",
+    se.PLAY: "Play now",
+    se.DONT_PLAY: "Don't play",
+    se.WAIT: "Wait",
+    # Unreachable, like its label: nothing in the project produces BONUS.
+    BONUS: "Bonus now",
+}
+
+
+def spoken(decision):
+    """The words for a decision, said aloud. None when there is nothing.
+
+    The voice decides nothing. It is handed the value the banner was handed,
+    and this turns that one value into one phrase.
+    """
+    return SPOKEN_DECISIONS.get(decision)
+
+
 class CurrentDecision:
     """Which decision is current, and whether it just changed.
 

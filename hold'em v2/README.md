@@ -57,7 +57,7 @@ Delete them if you want to start clean — both are recreated automatically.
 | **Times the round** | Round length, flop-to-showdown, and the gap to the next round, in seconds |
 | **Stores it** | One row per round in PostgreSQL, mirrored to Excel, with duplicates impossible |
 | **Scenarios** | Your own if-this-then-that rules, shown as a recommendation and testable against your recorded history |
-| **Speaks** | Announces the cards, your hand and the result as they settle — offline, on its own thread, never holding up the tracker |
+| **Speaks** | Announces the decision on the green banner as it changes — offline, on its own thread, never holding up the tracker. Set `voice_announce_cards` true to hear the cards and the result as well |
 
 What it deliberately does **not** do: press buttons, place bets, automate the
 game, or tell you how to play.
@@ -88,7 +88,7 @@ game, or tell you how to play.
 | Spreadsheet | openpyxl |
 | Config | JSON (`config/*.json`) + `.env` via python-dotenv |
 | Image generation | Pillow — only used to draw fallback card templates |
-| Tests | pytest — 1,341 tests |
+| Tests | pytest — 1,422 tests |
 | Logging | Python `logging`, rotating file in `logs/` |
 
 Everything runs locally. Nothing is sent anywhere.
@@ -156,10 +156,12 @@ and troubleshooting are all in **[docs/DATABASE.md](docs/DATABASE.md)**.
 python -m pytest tests -q
 ```
 
-You should see `1339 passed, 2 skipped`. Database tests skip themselves if
-PostgreSQL is unreachable, so a few more skips are fine. The two that always
-skip are the Action Controller test when PyAutoGUI is not installed, and a
-table-layout test that needs sample frames in `samples/`.
+You should see `1420 passed, 2 skipped`. Those two always skip: the
+Action Controller test when PyAutoGUI is not installed, and a table-layout test
+that needs sample frames in `samples/`. Sometimes a Tk test skips as well
+because Tcl failed to initialise, landing on a different test each run.
+Database tests skip themselves if PostgreSQL is unreachable, so more skips are
+fine.
 
 ---
 
@@ -782,7 +784,7 @@ hold'em v2/
 │
 ├── tools/                     setup_database, generate_templates,
 │                              audit_templates, backtest
-├── tests/                     1,341 tests
+├── tests/                     1,422 tests
 ├── data/poker_hands.xlsx
 └── logs/tracker.log
 ```

@@ -252,9 +252,16 @@ def capture(payload, rules, session, previous=None, history=None, now=None):
                           "Capture again once the cards are confirmed."
                           % ", ".join(waiting))
         if not previous:
-            return None, ("No decision has been made yet. There is no finished "
-                          "round for the pre-round rules to look at, and the "
-                          "flop is not out.")
+            return None, (
+                "Teaching is available once a completed scenario decision "
+                "exists.\n\n"
+                "Right now there is neither: the flop is not out, so there is "
+                "no flop decision, and no finished round is known, so the "
+                "pre-round rules have nothing to look at.\n\n"
+                "A finished round becomes known either by playing one while "
+                "the tracker runs, or from the recorded hands loaded at "
+                "startup - so if the database was unreachable when the window "
+                "opened, this says so too. Check the message line.")
         section = PREROUND
         action, rule = decision["preround_action"], decision["preround_rule"]
     else:
