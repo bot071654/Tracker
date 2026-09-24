@@ -68,8 +68,6 @@ def stub_everything_but_the_voice(monkeypatch):
 
     monkeypatch.setattr(app_module.App, "_startup_checks", lambda self: None)
     monkeypatch.setattr(app_module.App, "_refresh_statistics", lambda self: None)
-    monkeypatch.setattr(app_module.App, "_refresh_scenario_history",
-                        lambda self: None)
     monkeypatch.setattr(tracker_module.Tracker, "start", lambda self: None)
     monkeypatch.setattr(tracker_module.Tracker, "stop", lambda self: None)
     monkeypatch.setattr(tracker_module.Tracker, "is_running",

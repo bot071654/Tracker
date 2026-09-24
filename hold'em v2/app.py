@@ -24,9 +24,7 @@ from config.settings import (
 )
 from database import db
 from export import excel_export
-from poker import analysis
 from poker import scenarios as scenario_rules
-from poker.board_features import summarise
 from poker.hand_record import build_hand_record, hands_so_far
 from poker import teaching
 from recognition import result_panel, table_layout
@@ -87,7 +85,6 @@ class App:
         self.last_panels = {}         # what the result panels last showed
         self.debug_window = None      # the Live Recognition Debug window, when open
         self._dealer_displayed = {}   # the dealer cards last put on screen
-        self.scenario_history = {}    # how each situation has gone before
         # Rounds played, most recent first. A rule about consecutive wins needs
         # more than the last round, and only the last few are ever looked at.
         self.history = []
@@ -190,7 +187,6 @@ class App:
         self._poll_events()
         self._startup_checks()
         self._refresh_statistics()
-        self._refresh_scenario_history()
 
     # -- layout ------------------------------------------------------------
 
@@ -363,20 +359,6 @@ class App:
         self.verification_label = self._wrapping(ttk.Label(
             frame, textvariable=self.verification_var, justify="left"))
         self.verification_label.pack(anchor="w", fill="x", pady=(2, 0))
-
-        ttk.Separator(frame).pack(fill="x", pady=10)
-        ttk.Label(frame, text="Your scenarios say:",
-                  font=("Segoe UI", 10, "bold")).pack(anchor="w")
-        self.scenario_var = tk.StringVar(value=DASH)
-        self._wrapping(ttk.Label(
-            frame, textvariable=self.scenario_var, justify="left",
-            foreground="#0b6", font=("Segoe UI", 10, "bold"))
-        ).pack(anchor="w", fill="x", pady=(2, 0))
-
-        self.detected_var = tk.StringVar(value=DASH)
-        self._wrapping(ttk.Label(
-            frame, textvariable=self.detected_var, justify="left",
-            font=("Segoe UI", 9))).pack(anchor="w", fill="x", pady=(4, 0))
 
         ttk.Separator(frame).pack(fill="x", pady=10)
         ttk.Label(frame, text="Last Saved Hand:",
@@ -697,43 +679,6 @@ class App:
             pass
 
     # -- helpers -----------------------------------------------------------
-
-    def show_detected(self, found):
-        """Name the situations on the table, and how they have gone before.
-
-        Naming them is the point: a recommendation with nothing behind it is
-        hard to trust or to argue with. The percentages are history - what the
-        recorded rounds did - and are labelled as such, with a warning when
-        there are too few of them to mean anything.
-        """
-        if not found:
-            self.detected_var.set(
-                "Insufficient card data" if self.tracker.is_running() else DASH)
-            return
-
-        lines = []
-        for entry in found[:4]:
-            history = self.scenario_history.get(entry["key"])
-            if history and history["triggered"]["rounds"]:
-                note = "  (%d hands, player %.0f%%, %+.0f vs the rest%s)" % (
-                    history["triggered"]["rounds"],
-                    history["triggered"]["player_percent"],
-                    history["advantage"],
-                    ", small sample" if history["small_sample"] else "")
-            else:
-                note = "  (not seen before)"
-            lines.append("- %s%s" % (entry["label"], note))
-        self.detected_var.set("\n".join(lines))
-
-    def _refresh_scenario_history(self):
-        """Recount how each situation has turned out, off the UI thread."""
-        def work():
-            try:
-                report = analysis.statistics(db.fetch_all_hands())
-                self.events.put(("scenario_history", report["scenarios"]))
-            except db.DatabaseError as exc:
-                logger.info("Could not read the recorded hands: %s", exc)
-        threading.Thread(target=work, daemon=True).start()
 
     def show_statistics(self, stats):
         """Show how the recorded rounds turned out. Counts only; no forecast."""
@@ -1121,8 +1066,6 @@ class App:
             self.set_message(payload)
         elif kind == "statistics":
             self.show_statistics(payload)
-        elif kind == "scenario_history":
-            self.scenario_history = {entry["key"]: entry for entry in payload}
         elif kind == "history":
             # Only fill in what this session has not already seen: a round
             # finishing while the database was being read must not be lost.
@@ -1205,7 +1148,6 @@ class App:
         # Worked out by the tracker's Scenario Engine; shown, never recalculated.
         self.scenario_panel.show(payload.get("scenario"))
         self.scenario_panel.show_action(payload.get("action"))
-        self._show_scenario(cards, statuses)
 
         # The voice gets the same payload the window just drew, plus the
         # progress already computed above - it evaluates nothing of its own.
@@ -1254,53 +1196,6 @@ class App:
             text, colour = DASH, ""
         self.verification_var.set(text)
         self.verification_label.configure(foreground=colour)
-
-    def _show_scenario(self, cards, statuses=None):
-        """What the user's own rules make of the table right now.
-
-        This is a recommendation only - the app never touches the game.
-
-        `statuses` is each slot's recognition status, so no rule is ever
-        applied to a card the tracker has not settled. A card still arriving
-        on the flop reads as something else for a poll or two, and a rule
-        fired on it is a rule fired on the wrong card. The Scenario Engine
-        panel beside this one waits for the same five cards; until now this
-        one did not.
-        """
-        decision = scenario_rules.decide_from_cards(
-            self.scenarios, cards, self.last_record, self.history,
-            statuses=statuses or {},
-        )
-        features = decision["features"]
-
-        if features:
-            action = scenario_rules.ACTION_LABELS[decision["flop_action"]]
-            reason = decision["flop_rule"]["name"] if decision["flop_rule"] else "default"
-            self.scenario_var.set(
-                "%s  ->  %s\n(%s)" % (summarise(features), action.upper(), reason)
-            )
-            self.show_detected(analysis.detect(features))
-            return
-        self.show_detected([])
-
-        # The flop is showing but a card is not settled: say which one, rather
-        # than a recommendation worked out from a card about to change.
-        waiting = decision["waiting_for"]
-        if waiting and all(cards.get(slot) for slot in scenario_rules.FLOP_SLOTS):
-            self.scenario_var.set(
-                "Reading the table\n(waiting for %s)"
-                % ", ".join(SLOT_LABELS[slot] for slot in waiting))
-            return
-
-        if self.last_record:
-            action = scenario_rules.ACTION_LABELS[decision["preround_action"]]
-            rule = decision["preround_rule"]
-            reason = rule["name"] if rule else "default"
-            self.scenario_var.set(
-                "Next round: %s\n(%s)" % (action.upper(), reason)
-            )
-        else:
-            self.scenario_var.set("Waiting for the flop")
 
     # -- voice controls ----------------------------------------------------
     #
@@ -1504,7 +1399,6 @@ class App:
         self.history.insert(0, record)
         del self.history[HISTORY_ROUNDS:]
         self._refresh_statistics()
-        self._refresh_scenario_history()
         self.last_saved_var.set(
             "#%s  %s\nPlayer: %s   Dealer: %s"
             % (row["id"], record["hand_fingerprint"],

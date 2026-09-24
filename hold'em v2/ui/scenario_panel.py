@@ -8,6 +8,7 @@ scenario_view() is plain Python, so what is shown can be tested without a
 display; ScenarioPanel only touches its widgets when that view changes.
 """
 
+import textwrap
 import tkinter as tk
 from tkinter import ttk
 
@@ -48,6 +49,20 @@ def _matched_lines(names):
     return lines
 
 
+def _reason_lines(reason):
+    """"Reason:" and the engine's own sentence, wrapped to the panel's width.
+
+    The engine's reason names every scenario that matched, which runs past a
+    hundred characters on a busy flop - far wider than the strip beside the
+    cards. Wrapped here for the same reason _matched_lines wraps: so the panel
+    stays beside the table instead of pushing the window's content down.
+    """
+    if not reason:
+        return []
+    return textwrap.wrap("Reason: %s" % reason, width=LINE,
+                         subsequent_indent="  ")
+
+
 def scenario_view(scenario):
     """What the panel shows for one "scenario" payload, as plain strings.
 
@@ -77,10 +92,15 @@ def scenario_view(scenario):
         primary = scenario.get("primary_scenario") or se.NONE
         if primary == se.NONE:
             primary = "NONE - hand %s" % (scenario.get("detected_hand") or DASH)
-        lines = ["Primary: %s" % primary,
+        lines = ["Scenario: %s" % primary,
                  "Player: %s  Flop: %s" % (_cards(scenario.get("player_cards")),
                                            _cards(scenario.get("flop_cards")))]
         lines += _matched_lines(scenario.get("matched_scenarios"))
+        # The engine's own sentence for why it decided that - "matched
+        # PLAYER_PAIR", or why nothing matched. Shown verbatim: this panel
+        # explains the decision, it does not word it. A WAIT already had its
+        # reason above; this is the same field for the other two decisions.
+        lines += _reason_lines(scenario.get("reason"))
         details = "\n".join(lines)
 
     qualified = scenario.get("dealer_qualified")

@@ -64,8 +64,6 @@ def application(root, monkeypatch):
                         lambda *_a, **_k: engines.NullEngine())
     monkeypatch.setattr(app_module.App, "_startup_checks", lambda self: None)
     monkeypatch.setattr(app_module.App, "_refresh_statistics", lambda self: None)
-    monkeypatch.setattr(app_module.App, "_refresh_scenario_history",
-                        lambda self: None)
     monkeypatch.setattr(app_module.db, "check_connection",
                         lambda *_a, **_k: (True, "stubbed"))
     monkeypatch.setattr(app_module.messagebox, "askyesno",

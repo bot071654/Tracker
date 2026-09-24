@@ -3,7 +3,12 @@
 Display only. It never clicks, types or sends anything to the game - you place
 the bet yourself. It reads nothing the tracker has not already sent the window,
 and decides nothing: the ANTE / SKIP comes from poker/scenarios.decide_preround,
-the same rules shown under "Your scenarios say:".
+the pre-round rules stored in config/scenarios.json.
+
+That is a different decision from the one in the SCENARIO panel beside the
+cards, which is the Scenario Engine's PLAY / DON'T PLAY / WAIT. Both reach the
+same banner - see ui/decision_banner.py - but only one of them is about the
+round that is about to start. See docs/SCENARIOS.md.
 
 When it fires
 -------------

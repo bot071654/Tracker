@@ -26,22 +26,39 @@ def view(scenario):
 
 # -- the three decisions -------------------------------------------------------
 
-def test_play_shows_decision_primary_cards_and_matches():
+def test_play_shows_decision_scenario_cards_and_matches():
     scenario = se.evaluate_round(slots(TRIPS), round_id=1)
     assert scenario["matched_scenarios"] == [se.PLAYER_PAIR, se.PLAYER_PAIR_PLUS_FLOP_MATCH]
     shown = view(scenario)
     assert shown["decision"] == "Decision: PLAY"
-    assert "Primary: THREE_OF_A_KIND" in shown["details"]
+    assert "Scenario: THREE_OF_A_KIND" in shown["details"]
     assert "Player: 7S 7D" in shown["details"] and "Flop: 7H KC 3S" in shown["details"]
     assert "PLAYER_PAIR," in shown["details"]
     assert "PLAYER_PAIR_PLUS_FLOP_MATCH" in shown["details"]
 
 
+def test_play_shows_the_engines_own_reason():
+    """The panel is now the only place a decision is explained, so it says why.
+
+    The words are the engine's, not the panel's: whatever evaluate_round put
+    in "reason" is what appears.
+    """
+    scenario = se.evaluate_round(slots(TRIPS), round_id=1)
+    shown = view(scenario)
+    assert "Reason:" in shown["details"]
+    for word in scenario["reason"].split():
+        assert word in shown["details"]
+
+
 def test_dont_play_is_shown_with_a_space_and_the_actual_hand():
-    shown = view(se.evaluate_round(slots(NOTHING), round_id=1))
+    scenario = se.evaluate_round(slots(NOTHING), round_id=1)
+    shown = view(scenario)
     assert shown["decision"] == "Decision: DON'T PLAY"
-    assert "Primary: NONE - hand HIGH_CARD" in shown["details"]
+    assert "Scenario: NONE - hand HIGH_CARD" in shown["details"]
     assert "Matched: none" in shown["details"]
+    # Why nothing matched, in the engine's words.
+    assert "Reason:" in shown["details"]
+    assert "no pair, two pair, trips" in shown["details"]
 
 
 def test_wait_shows_the_reason_and_which_cards_are_missing_and_why():
@@ -55,7 +72,7 @@ def test_wait_shows_the_reason_and_which_cards_are_missing_and_why():
     assert "player_1: 7S is CONFIRMING" in shown["details"]
     assert "player_2: no card (UNKNOWN)" in shown["details"]
     assert "+2 more" in shown["details"]              # five reasons, three shown
-    assert "Primary" not in shown["details"] and "Matched" not in shown["details"]
+    assert "Scenario:" not in shown["details"] and "Matched" not in shown["details"]
 
 
 def test_card_cells_mark_each_cards_status():

@@ -15,14 +15,15 @@ and none is to be added.
 
 ## 1. The two rule systems
 
-There are two separate systems, and they answer different questions. Knowing
-which one you are looking at explains most of what seems odd about the display.
+There are two separate systems, and they answer different questions. Only one
+of them decides what the tracker shows you; the other is still live, but it is
+used by the backtest and by Teach / Correct rather than displayed.
 
-| System | Produces | Lives in | Shown on |
+| System | Produces | Lives in | Shown where |
 |---|---|---|---|
 | Pre-round rules | `ANTE` / `SKIP` | `config/scenarios.json` | **the green banner** |
-| Scenario Engine | `PLAY` / `DON'T PLAY` / `WAIT` | `config/scenario_engine.json` | **the green banner** |
-| Saved flop rules | `Play on` / `Fold` | `config/scenarios.json` | **the side panel only** |
+| Scenario Engine | `PLAY` / `DON'T PLAY` / `WAIT` | `config/scenario_engine.json` | **the green banner** and the SCENARIO panel |
+| Saved flop rules | `Play on` / `Fold` | `config/scenarios.json` | **not displayed** — used by Teach / Correct and the backtest |
 
 ### The green banner
 
@@ -32,8 +33,29 @@ which one you are looking at explains most of what seems odd about the display.
   (section 4), via `app.py`.
 
 **The Scenario Engine is the only source of the green PLAY / DON'T PLAY
-decision.** The saved flop rules do not control the banner. See section 10 for
-why this matters on screen.
+decision.** The saved flop rules do not control the banner.
+
+### One scenario area
+
+The main window shows the Scenario Engine's decision in **one** place, the
+`SCENARIO` panel beside the cards:
+
+```
+SCENARIO   Decision: PLAY
+Scenario: PAIR
+Player: 7S 7D  Flop: KC 9H 2S
+Matched: PLAYER_PAIR
+Reason: matched PLAYER_PAIR
+```
+
+`Scenario:` is the primary scenario, `Matched:` every structural scenario that
+fired, and `Reason:` the engine's own sentence — this panel displays those
+values, it does not word them. A `WAIT` shows its reason and which cards are
+holding it up instead.
+
+Note that `Scenario:` names the primary scenario, which for anything below a
+straight is the **group** — `PAIR`, `TWO_PAIR`, `THREE_OF_A_KIND` — while
+`Matched:` names the individual scenarios. See section 7.
 
 ---
 
@@ -65,7 +87,17 @@ application has no betting subsystem, and none was added for this.
 ## 3. Saved flop rules
 
 Your own rules about the flop. Read in order, first match wins.
-**These feed the side panel only — they do not decide the green banner.**
+
+**These are not displayed in the main tracker window.** They remain fully
+functional and are still used by:
+
+* **Teach / Correct Scenario** — which rule matched, and what correcting it
+  would change;
+* **`tools/backtest.py`** — scoring a rule against the hands already recorded;
+* the **rule builder** windows, which create and edit them.
+
+They are stored in `config/scenarios.json` as they always were. What changed is
+only that the tracker window no longer shows their recommendation.
 
 | Order | Hand | Condition | Says | In plain words |
 |---|---|---|---|---|
@@ -107,6 +139,29 @@ an oversight and "restored" later.
 
 `Fold` exists as an action the rule model can express, but **no Fold rule is
 configured and none is to be invented.**
+
+### Why these are no longer shown — a note on the history
+
+The tracker window used to carry a second area, "Your scenarios say", showing
+what these rules made of the table. It was removed so there is one
+authoritative scenario area rather than two.
+
+The reason it was confusing is worth recording, because the underlying fact has
+not changed: **these rules and the Scenario Engine disagree by design.** Their
+defaults point opposite ways.
+
+* The saved flop rules **default to "play on"**, so this path never says fold.
+* The Scenario Engine **defaults to `DON'T PLAY`** when no structural scenario
+  matches.
+
+So on any hand the engine rejects, these rules still say "play on (default)" —
+for instance a flush with no A/K/Q in the hole, or a High Card hand where the
+big card is only on the board. The two used to sit side by side on screen
+saying opposite things.
+
+Removing the display did not change that; it only stopped showing it. The
+**green banner remains the decision**, and these rules remain what the backtest
+and Teach / Correct reason about.
 
 ---
 
@@ -266,28 +321,7 @@ turned into betting rules without explicit confirmation.**
 
 ---
 
-## 10. Why the side panel and the green banner can disagree
-
-You will sometimes see the side panel say **PLAY ON** while the green banner
-says **DON'T PLAY**. This is expected, and it is not a fault in either.
-
-They are different systems answering different questions (section 1), and their
-defaults point opposite ways:
-
-* The saved flop rules **default to "play on"**, so that path never says fold.
-* The Scenario Engine **defaults to `DON'T PLAY`** when no structural scenario
-  matches.
-
-So on any hand the engine rejects, the panel still reads "PLAY ON (default)".
-Two examples: a flush with no A/K/Q in the hole, and a High Card hand where the
-big card is only on the board.
-
-**The green banner is the authoritative one.** The panel line tells you what
-your own saved rules make of the table; the banner is the decision.
-
----
-
-## 11. "One Card Required" — not implemented
+## 10. "One Card Required" — not implemented
 
 A scenario called **"One Card Required"** exists in this project's history. It
 was never implemented, because the term was never defined.
@@ -306,7 +340,7 @@ answered it stays out.
 
 ---
 
-## 12. Deliberately not here
+## 11. Deliberately not here
 
 None of the following exists in the scenario system, and none is to be added
 without explicit confirmation:
@@ -322,11 +356,11 @@ without explicit confirmation:
   requirement
 
 The absence of a rule here is a decision, not an omission. If a scenario seems
-to be missing, it is either in section 11 or in this list.
+to be missing, it is either in section 10 or in this list.
 
 ---
 
-## 13. Where these live
+## 12. Where these live
 
 | What | File |
 |---|---|

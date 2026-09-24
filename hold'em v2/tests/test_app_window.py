@@ -33,7 +33,6 @@ def no_background_work(monkeypatch):
 
     monkeypatch.setattr(App, "_startup_checks", lambda self: None)
     monkeypatch.setattr(App, "_refresh_statistics", lambda self: None)
-    monkeypatch.setattr(App, "_refresh_scenario_history", lambda self: None)
 
 
 @pytest.fixture
@@ -150,10 +149,10 @@ def test_a_long_scenario_does_not_push_anything_off_the_bottom(root, tmp_path):
     app = build(root, tmp_path, (1366, 768))
     before = app.content.winfo_reqheight()
 
-    app.scenario_var.set("\n".join("A rule that matched, number %d" % n
-                                   for n in range(12)))
-    app.detected_var.set("\n".join("- SCENARIO_%d  (48 hands, player 55%%)" % n
-                                   for n in range(8)))
+    # The SCENARIO panel is the one scenario area now, and it is inside the
+    # scrolling column, so a long decision is what can push the rest down.
+    app.scenario_panel.details_var.set(
+        "\n".join("Matched: SCENARIO_%d" % n for n in range(20)))
     root.update()
 
     assert app.content.winfo_reqheight() > before      # the column simply got taller

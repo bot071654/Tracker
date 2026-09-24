@@ -192,9 +192,6 @@ Player Hand: --
 Dealer Hand: --
 Winner:      --
 
-Your scenarios say:
---
-
 Last Saved Hand:
 --
 ```
@@ -332,8 +329,13 @@ same round can never be recorded twice however long it stays on screen.
 Two buttons open rule builders. Rules are checked top to bottom, first match
 wins, and they are stored in `config/scenarios.json`.
 
-**The app never presses anything.** A scenario produces a recommendation, shown
-under "Your scenarios say", which you act on yourself.
+**The app never presses anything.** A scenario produces a recommendation, which
+you act on yourself.
+
+These flop rules are not shown in the tracker window: the one scenario area
+there is the SCENARIO panel, which shows the Scenario Engine's decision. The
+rules remain live for Teach / Correct and for `tools/backtest.py`. See
+[docs/SCENARIOS.md](docs/SCENARIOS.md).
 
 ### The decision banner
 
