@@ -102,6 +102,17 @@ class App:
         # from one captured after it. The pair can.
         self.latest_payload = None
         self.teach_session = 0
+        # Whether this window considers itself to be tracking. The decision
+        # banner is an always-on-top frame with no title bar, so one left
+        # behind sits over whatever the person does next; the question "may a
+        # decision be shown at all" therefore has to have one owner, and this
+        # is it. teach_session beside it is the session identity, bumped on
+        # every start, so work from an earlier session can be recognised.
+        self.tracking = False
+        # Whether the tracker thread has actually been seen running this
+        # session. Without it the reconciliation below would fire in the
+        # moment between start() returning and the thread being scheduled.
+        self._tracker_seen_running = False
         # The last decision the voice actually said. Not the same thing as the
         # one on the banner: see _announce_decision.
         self._spoken_decision = None
@@ -828,12 +839,19 @@ class App:
         self.teach_session += 1
         self.latest_payload = None
         self._spoken_decision = None
+        self.tracking = True
+        self._tracker_seen_running = False
         if self.ante_alert is not None:
             self._apply_ante_event(self.ante_alert.reset())
         if self.decision_banner is not None:
             # Hidden, and with the last session's decision forgotten, until
             # this session's scenario engine produces one.
             self.decision_banner.start()
+        # Frames the last session left in the queue are not about this one.
+        # The guard in _handle_event drops them while stopped, but tracking is
+        # true again from here on and nothing downstream could tell them from
+        # this session's own, so they go before the new tracker produces any.
+        self._drop_queued_updates()
         self.tracker = Tracker(self.config, self.events)
         self.tracker.start()
         self.set_status("RUNNING")
@@ -841,31 +859,53 @@ class App:
         self.stop_button.config(state="normal")
 
     def stop(self):
-        self.tracker.stop()
-        self.set_status("STOPPED")
-        # A stopped tracker's last decision is not a decision about the table now.
-        self.scenario_panel.reset()
-        # Nor is it something to teach a rule from. Dropped here as well as
-        # refused in the dialog, so a window left open cannot activate against
-        # a hand that finished before the tracker was stopped.
-        self.latest_payload = None
-        # And nothing queued about this session should still be said. The
-        # announcer's queue outlives the tracker exactly as the window's event
-        # queue does, so without this a decision from the round that was in
-        # progress would be spoken over whatever happens next - and after a
-        # restart it would be spoken about the new session.
-        self.announcer.stop()
-        self._spoken_decision = None
-        self._refresh_voice_state()
-        if self.ante_alert is not None:
-            self._apply_ante_event(self.ante_alert.reset())
+        """End the tracking session and take the banner down with it.
+
+        The order here is the whole point. The banner used to be closed on the
+        last line while the status line was set on the first, so anything that
+        raised in between - the voice, the scenario panel, the ANTE alert -
+        left an always-on-top green banner reading PLAY NOW over whatever the
+        person did next, above a window that already said STOPPED. In a Tk
+        button callback that traceback goes to stderr, which nobody launching
+        from a shortcut ever sees.
+
+        So the session ends and the banner closes first, unconditionally, and
+        everything that can fail is kept behind them.
+        """
+        self.tracking = False
+        self._tracker_seen_running = False
         if self.decision_banner is not None:
             # Not just cleared: closed. Updates queued before the tracker
             # stopped are still waiting to be drained, and the banner must
             # refuse them rather than reappear over whatever is on screen now.
             self.decision_banner.stop()
+        # The voice is silenced here for the same reason and with the same
+        # unconditionality: the announcer's queue outlives the tracker exactly
+        # as the window's event queue does, so a decision from the round that
+        # was in progress would otherwise be spoken over whatever happens next
+        # - and after a restart, spoken about the new session.
+        self.announcer.stop()
+        self._spoken_decision = None
+        self.set_status("STOPPED")
         self.start_button.config(state="normal")
         self.stop_button.config(state="disabled")
+
+        try:
+            self.tracker.stop()
+            # A stopped tracker's last decision is not a decision about the
+            # table now.
+            self.scenario_panel.reset()
+            # Nor is it something to teach a rule from. Dropped here as well as
+            # refused in the dialog, so a window left open cannot activate
+            # against a hand that finished before the tracker was stopped.
+            self.latest_payload = None
+            self._refresh_voice_state()
+            if self.ante_alert is not None:
+                self._apply_ante_event(self.ante_alert.reset())
+        except Exception:                       # noqa: BLE001 - see above
+            logger.exception(
+                "Something failed while stopping the tracker; the decision "
+                "banner was already closed")
 
     def calibrate(self):
         was_running = self.tracker.is_running()
@@ -1009,10 +1049,65 @@ class App:
                         "Could not handle a %r event; carrying on", kind)
         except queue.Empty:
             pass
+        self._reconcile_tracking()
         self.root.after(200, self._poll_events)
+
+    def _reconcile_tracking(self):
+        """Notice a tracker that ended without anyone pressing Stop.
+
+        The banner is only ever taken down by stop(), so a tracker thread that
+        ends on its own - an unhandled error in the recognition loop - leaves
+        an always-on-top green banner showing the last decision it made, above
+        a window still claiming to be RUNNING. Nothing else watches for that,
+        because every other consumer is fed by events that simply stop
+        arriving.
+
+        Checked once per poll, and only after the thread has actually been
+        seen alive: start() returns before the thread is necessarily
+        scheduled, and treating that instant as "it has ended" would stop the
+        session it had just begun.
+        """
+        if not self.tracking:
+            return
+        if self.tracker.is_running():
+            self._tracker_seen_running = True
+            return
+        if not self._tracker_seen_running:
+            return
+        logger.warning(
+            "The tracker is no longer running but Stop was not pressed; "
+            "ending the session so the decision banner does not stay up")
+        self.stop()
+
+    def _drop_queued_updates(self):
+        """Forget tracker frames still queued from an earlier session.
+
+        Only the tracker's own updates. A saved hand, the statistics and the
+        startup notes are not about a session - they are answers to something
+        the window asked for - so they are put back and still arrive.
+        """
+        keep = []
+        try:
+            while True:
+                event = self.events.get_nowait()
+                if event[0] != "update":
+                    keep.append(event)
+        except queue.Empty:
+            pass
+        for event in keep:
+            self.events.put(event)
 
     def _handle_event(self, kind, payload):
         if kind == "update":
+            if not self.tracking:
+                # A frame from a session that has ended. The queue outlives the
+                # tracker, so these arrive after Stop and after a thread that
+                # ended on its own, and handling one repaints the status line
+                # back to "RUNNING - ..." about a table nobody is watching any
+                # more. Dropped whole rather than per-widget: the same payload
+                # also feeds the decision banner, the voice and the debug
+                # window, and none of them wants an ended session's frame.
+                return
             self._show_reading(payload)
             self._update_ante_alert(payload)
             window = self.debug_window
@@ -1311,7 +1406,11 @@ class App:
         polls about five times a second, and logging a stable decision at that
         rate would bury everything else.
         """
-        if self.decision_banner is None:
+        if self.decision_banner is None or not self.tracking:
+            # Two independent guards on purpose. This one is the window's own
+            # answer to "are we tracking"; DecisionBanner.show has its own,
+            # because the banner is the thing left on screen and must be able
+            # to refuse without trusting its caller.
             return False
         changed = self.decision_banner.show(decision, reason, round_id)
         if changed:

@@ -157,6 +157,12 @@ def test_app_shows_the_alert_from_the_users_rules(root, monkeypatch):
         lambda self, action, reason="", round_id=None: setattr(
             self, "shown", (action, reason)))
     application = app_module.App(root)
+    # A banner may only be shown while a tracking session is open: that is the
+    # whole of the lifecycle fix, and showing one otherwise is the bug it
+    # exists to prevent. start() itself is not called here because it would
+    # build a real Tracker and ask the database; this flag is what
+    # _publish_decision consults.
+    application.tracking = True
     application.ante_banner.shown = None
     application.last_record = {"winner": scenario_rules.DEALER}
     application.history = [application.last_record]

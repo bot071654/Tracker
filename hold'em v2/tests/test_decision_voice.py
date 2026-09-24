@@ -562,6 +562,13 @@ def test_a_bad_event_is_logged_rather_than_swallowed(application, caplog):
     """Dropped, but not quietly - the log has to say a payload was refused."""
     import logging
 
+    # The session has to be open for the payload to be handled at all: an
+    # update that arrives while nothing is being tracked is now dropped before
+    # anything looks at it, so a malformed one would never reach the handler
+    # and there would be nothing to log. Started here exactly as the test
+    # below it does.
+    application.start()
+    application.tracker._fake = True
     with caplog.at_level(logging.ERROR, logger="app"):
         application.events.put(("update", {"state": "FLOP"}))
         application._poll_events()

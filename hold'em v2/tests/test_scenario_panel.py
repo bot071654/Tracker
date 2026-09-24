@@ -178,6 +178,11 @@ def test_the_main_window_shows_the_trackers_scenario_payload(root, monkeypatch):
     monkeypatch.setattr(se, "evaluate_round", fail)
 
     window = app_module.App(root)
+    # An update is only looked at while a tracking session is open, so that a
+    # frame left in the queue by a stopped tracker cannot repaint the window.
+    # start() is not called here because it would build a real Tracker and ask
+    # the database; this flag is what _handle_event consults.
+    window.tracking = True
     cards = {slot: TRIPS.get(slot) for slot in CARD_SLOTS}
     # Deliberately not what these cards would give, to prove it is only displayed.
     scenario = {"decision": se.DONT_PLAY, "primary_scenario": "FROM_THE_TRACKER",
