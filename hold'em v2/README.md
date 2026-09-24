@@ -88,7 +88,7 @@ game, or tell you how to play.
 | Spreadsheet | openpyxl |
 | Config | JSON (`config/*.json`) + `.env` via python-dotenv |
 | Image generation | Pillow — only used to draw fallback card templates |
-| Tests | pytest — 1,422 tests |
+| Tests | pytest — 1,460 tests |
 | Logging | Python `logging`, rotating file in `logs/` |
 
 Everything runs locally. Nothing is sent anywhere.
@@ -156,7 +156,7 @@ and troubleshooting are all in **[docs/DATABASE.md](docs/DATABASE.md)**.
 python -m pytest tests -q
 ```
 
-You should see `1420 passed, 2 skipped`. Those two always skip: the
+You should see `1457 passed, 3 skipped`. Those two always skip: the
 Action Controller test when PyAutoGUI is not installed, and a table-layout test
 that needs sample frames in `samples/`. Sometimes a Tk test skips as well
 because Tcl failed to initialise, landing on a different test each run.
@@ -784,7 +784,7 @@ hold'em v2/
 │
 ├── tools/                     setup_database, generate_templates,
 │                              audit_templates, backtest
-├── tests/                     1,422 tests
+├── tests/                     1,460 tests
 ├── data/poker_hands.xlsx
 └── logs/tracker.log
 ```

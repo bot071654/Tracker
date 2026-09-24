@@ -284,7 +284,8 @@ def recognize_card(image, threshold=0.62, detail=False):
             "or use Teach cards." % TEMPLATE_DIR
         )
 
-    best, best_rank, chosen, tried = None, None, None, []
+    chosen, tried = None, []
+    readings = []
     for index, glyphs in enumerate(extract_glyph_candidates(image)):
         reading = _score_glyphs(glyphs, templates)
         rank, suit = reading["rank"], reading["suit"]
@@ -294,29 +295,67 @@ def recognize_card(image, threshold=0.62, detail=False):
             continue
         confidence = min(rank_score, suit_score)
         tried.append((index, rank + suit, round(confidence, 4), round(suit_margin, 4)))
-        # Confidence decides which cut to believe, as it always has; settling
-        # the card only breaks a tie between two equally convincing cuts.
-        # Ordering it the other way round lets a cut that is decisive about a
-        # card it barely recognises beat one that reads the card plainly - on
-        # the sample frame that turned a confident eight of spades into a
-        # ten of spades read at 0.35.
-        ranking = (confidence, _decisive(rank_margin, suit_margin))
-        if best is None or ranking > best_rank:
-            best_rank = ranking
-            best = {
-                "rank": rank,
-                "suit": suit,
-                "card": rank + suit,
-                "confidence": round(confidence, 4),
-                "rank_confidence": round(rank_score, 4),
-                "suit_confidence": round(suit_score, 4),
-                "rank_margin": round(rank_margin, 4),
-                "suit_margin": round(suit_margin, 4),
-            }
-            chosen = (index, glyphs, reading)
+        readings.append({
+            "index": index,
+            "glyphs": glyphs,
+            "reading": reading,
+            "card": rank + suit,
+            "rank": rank,
+            "suit": suit,
+            "confidence": confidence,
+            "rank_score": rank_score,
+            "suit_score": suit_score,
+            "rank_margin": rank_margin,
+            "suit_margin": suit_margin,
+            "decisive": _decisive(rank_margin, suit_margin),
+        })
 
-    if best is None:
+    if not readings:
         return None
+
+    # WHICH CARD, then HOW WELL IT READS - two questions, answered separately.
+    #
+    # Confidence decides which card, exactly as it always has. Ordering it the
+    # other way round lets a cut that is decisive about a card it barely
+    # recognises beat one that reads the card plainly - on the sample frame
+    # that turned a confident eight of spades into a ten of spades read at
+    # 0.35.
+    leader = max(readings, key=lambda item: (item["confidence"], item["decisive"]))
+
+    # Then, among the cuts that agree with it about the card, believe the one
+    # that is sure of the suit. A ten is cut more ways than other ranks - its
+    # two digits can look like a rank beside a suit - and the cuts disagree
+    # about the suit far more than about the card. Live, every refused ten
+    # looked like this:
+    #
+    #     cut 0  10S  conf=0.898  suit margin 0.001   <- chosen, refused
+    #     cut 1  10S  conf=0.897  suit margin 0.095   <- passed over
+    #
+    # The leading cut won by a thousandth of confidence and lost by a tenth of
+    # suit margin, so a card both cuts read as a ten of spades was reported as
+    # no card at all. Across the 2595 refused crops this machine has kept, 232
+    # had a decisive cut that agreed with the leader about the card.
+    #
+    # Restricting this to cuts that name the SAME card is what makes it safe:
+    # it can change whether a card is accepted and what its margins are, never
+    # which card is reported. A decisive cut naming a different card sits a
+    # median of 0.547 behind the leader in confidence - a different population
+    # entirely - and is still ignored.
+    agreeing = [item for item in readings if item["card"] == leader["card"]]
+    settled = max(agreeing, key=lambda item: (item["decisive"], item["confidence"]))
+
+    best = {
+        "rank": settled["rank"],
+        "suit": settled["suit"],
+        "card": settled["card"],
+        "confidence": round(settled["confidence"], 4),
+        "rank_confidence": round(settled["rank_score"], 4),
+        "suit_confidence": round(settled["suit_score"], 4),
+        "rank_margin": round(settled["rank_margin"], 4),
+        "suit_margin": round(settled["suit_margin"], 4),
+    }
+    chosen = (settled["index"], settled["glyphs"], settled["reading"])
+
     decisive = _decisive(best["rank_margin"], best["suit_margin"])
     best["confident"] = best["confidence"] >= threshold and decisive
     if not decisive:
