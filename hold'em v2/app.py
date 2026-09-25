@@ -73,6 +73,13 @@ ACTIVE_GREEN = "#0b6"
 GAME_ACTIVE_STATUS = "TRACKING ACTIVE — GAME ACTIVE"
 GAME_PAUSED_STATUS = "TRACKING PAUSED — GAME NOT ACTIVE"
 
+# STOPPED needs to read as unmistakably different from RUNNING at a glance -
+# text alone ("Status: STOPPED" vs "Status: RUNNING") was too easy to miss,
+# which is exactly how a tracker sat idle through a real 35-minute session.
+STOPPED_RED = "#b00020"
+MID_HAND_NOTICE = ("Tracking started during an existing hand - waiting for "
+                    "the next stable decision state.")
+
 
 class App:
     def __init__(self, root, screen=None, work_area=None, window_state=None):
@@ -732,9 +739,24 @@ class App:
         The colour is set here rather than by the caller that greys it, so a
         status set anywhere else - STOPPED, RUNNING, a frame's state - puts it
         back without having to know a paused state exists.
+
+        RUNNING and STOPPED get their own colours - green and red - rather
+        than both sharing the default text colour. Text alone ("Status:
+        RUNNING" vs "Status: STOPPED") was too easy to overlook at a glance,
+        which is how a tracker went unnoticed sitting idle through a real
+        35-minute session: the window was relaunched many times, but nothing
+        made "not tracking" visually obvious.
         """
         self.status_var.set("Status: %s" % text)
-        self.status_label.configure(foreground=PAUSED_GREY if paused else "")
+        if paused:
+            colour = PAUSED_GREY
+        elif text.startswith("RUNNING"):
+            colour = ACTIVE_GREEN
+        elif text.startswith("STOPPED"):
+            colour = STOPPED_RED
+        else:
+            colour = ""
+        self.status_label.configure(foreground=colour)
 
     def set_message(self, text):
         self.message_var.set(text)
@@ -1157,12 +1179,20 @@ class App:
             status += " (%d covered)" % len(held)
         self.set_status(status)
 
-        if payload["uncertain"]:
+        if payload.get("started_mid_hand"):
+            # Takes priority over "uncertain": it explains why confirmation
+            # may be slow this one round, which is more useful right now than
+            # the generic notice - and it is rare and short-lived (one round,
+            # only when tracking began mid-hand), so it is never fighting the
+            # uncertain message for more than that.
+            self.set_message(MID_HAND_NOTICE)
+        elif payload["uncertain"]:
             self.set_message(
                 "Recognition uncertain: %s"
                 % ", ".join(SLOT_LABELS[slot] for slot in payload["uncertain"])
             )
-        elif self.message_var.get().startswith("Recognition uncertain"):
+        elif self.message_var.get() == MID_HAND_NOTICE or \
+                self.message_var.get().startswith("Recognition uncertain"):
             self.set_message("")
 
         # Evaluate whatever is on the table: the player's hand can be worked

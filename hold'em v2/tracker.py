@@ -630,6 +630,11 @@ class Tracker:
         self._stop = threading.Event()
         self._last_saved_fingerprint = None
         self._last_state = None
+        # Set once, the first time this session's very first poll already
+        # finds a state past WAITING - a hand already under way before
+        # tracking began. Kept only for that one round (see _tick): a hand
+        # started from its own deal is never mid-hand, whatever its state.
+        self._started_mid_hand_round = None
         self._pending = None          # (fingerprint, timestamp of next retry)
         self._stable = {"cards": None, "count": 0}
         self._saved_generation = None  # memory generation the last hand came from
@@ -1220,6 +1225,9 @@ class Tracker:
         state = derive_state(cards)
         self.timer.observe(state, self.memory.generation)
 
+        if self._last_state is None and state != WAITING:
+            self._started_mid_hand_round = self.memory.generation
+
         if state != self._last_state:
             # From the flop onwards the player's hand can be worked out, so the
             # log records how it developed street by street.
@@ -1264,6 +1272,12 @@ class Tracker:
             "dealer": dealer,
             "scenario": scenario,
             "action": action,
+            # True only for the round tracking happened to start inside -
+            # cards already on screen before the first poll, not dealt since.
+            # Display only: WAIT still waits for the same confirmations: this
+            # just tells the person why it might take a whole hand to answer.
+            "started_mid_hand": (self._started_mid_hand_round is not None
+                                  and self.memory.generation == self._started_mid_hand_round),
             # Each slot's recognition status (CONFIRMED, HELD, CONFIRMING,
             # AMBIGUOUS, UNKNOWN, EMPTY), so the window can say which card is
             # missing and why. Reporting only.

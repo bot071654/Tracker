@@ -561,13 +561,17 @@ def test_no_line_is_shown_when_nothing_is_being_watched(application):
 # -- Stop is authoritative ----------------------------------------------------
 
 def test_stopping_while_paused_leaves_the_window_reading_stopped(application):
+    import app as app_module
+
     begin(application)
     focus(application, wf.GAME_INACTIVE)
     application.tracker._fake = False
     application.stop()
     application.root.update()
     assert application.status_var.get() == "Status: STOPPED"
-    assert str(application.status_label.cget("foreground")) == ""
+    # Not stuck PAUSED_GREY from the pause just before stop() - STOPPED gets
+    # its own colour now (app_module.STOPPED_RED), never the paused one.
+    assert str(application.status_label.cget("foreground")) == app_module.STOPPED_RED
     assert application.focus_var.get() == ""
     assert not application.focus_label.winfo_ismapped()
 
