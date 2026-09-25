@@ -111,10 +111,9 @@ fi
 "$VENV/bin/python" -m pip install --upgrade pip >/dev/null \
     || fail "could not update pip."
 
-# pyautogui drives the Windows-only test-table automation, and pytest only
-# runs the test suite; neither is needed to track hands on a Mac.
+# pytest only runs the test suite, which is not needed to track hands on a Mac.
 REQS="$(mktemp)"
-grep -v -E '^\s*(pyautogui|pytest)' "$PROJECT_DIR/requirements.txt" > "$REQS"
+grep -v -E '^\s*pytest' "$PROJECT_DIR/requirements.txt" > "$REQS"
 step "Installing Python packages (OpenCV, NumPy, MSS, psycopg, ...)"
 "$VENV/bin/python" -m pip install -r "$REQS" || fail "the Python packages could not be installed."
 rm -f "$REQS"

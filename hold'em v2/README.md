@@ -156,12 +156,11 @@ and troubleshooting are all in **[docs/DATABASE.md](docs/DATABASE.md)**.
 python -m pytest tests -q
 ```
 
-You should see `1457 passed, 3 skipped`. Those two always skip: the
-Action Controller test when PyAutoGUI is not installed, and a table-layout test
-that needs sample frames in `samples/`. Sometimes a Tk test skips as well
-because Tcl failed to initialise, landing on a different test each run.
-Database tests skip themselves if PostgreSQL is unreachable, so more skips are
-fine.
+You should see `1457 passed, 3 skipped`. One test always skips: a
+table-layout test that needs sample frames in `samples/`. Sometimes a Tk test
+skips as well because Tcl failed to initialise, landing on a different test
+each run. Database tests skip themselves if PostgreSQL is unreachable, so more
+skips are fine.
 
 ---
 
@@ -476,46 +475,6 @@ it avoided losing are the benefit.
 > recorded hands, a player win was followed by Dealer 17 / Player 15, and a
 > dealer win by Player 17 / Dealer 15 — a coin flip. Rules there change how
 > often you play, not how often you win. The flop rules are the ones that matter.
-
-### Action Controller (local TEST table only)
-
-`automation/mouse_controller.py` turns the Scenario Engine's result into at most
-one PyAutoGUI click per action per hand, on the **local test table only**
-(`python -m automation.test_poker_ui`). It is **off by default**
-(`config/mouse_controller.json`: `"automation_enabled": false`) and has one
-mode, `TEST`; with it off the tracker behaves exactly as before and PyAutoGUI is
-never loaded.
-
-* A hand starts when the table has been empty for `ante_empty_polls` polls after
-  showing cards → one TEST_ANTE. PLAY → one TEST_PLAY (only after that ANTE).
-  DON'T_PLAY and WAIT → nothing.
-* Before each click: the test table's heartbeat must be fresh, its window must
-  have the test table's title and belong to its process, the click point must be
-  inside its button, and Windows must report the test table as the window under
-  that point. If the always-on-top tracker window covers the table, the table is
-  raised (without taking focus) and checked again. The hand must still be the
-  same hand when the button is pressed, and the table must confirm the click.
-  Otherwise nothing is clicked and the reason is logged under `[ACTION]`.
-* Button positions: `ante_button` / `play_button` are `null` by default, meaning
-  "use the positions the running test table reports", so moving the table does
-  not break anything. A configured `[x, y]` is still checked against the button.
-* A PLAY computed before the current hand began is never acted on, and stopping
-  the tracker cancels any click still queued.
-* An action for an old hand never moves the mouse: the hand is re-checked
-  before the move and again before the press.
-* The test table shows ANTE, BONUS and PLAY. BONUS is layout only — the
-  controller has no BONUS action and its validation refuses that button.
-* Logs: `[TEST HAND START]`, `[TEST HAND]` (`round=`, `player=`, `flop=`,
-  `scenario=`, matched rules), `[TEST ACTION]` (`ANTE` / `PLAY` with
-  `result=CLICKED`, or `NONE` / `CANCELLED` with `reason=`) and
-  `[TEST HAND SUMMARY]` (`ante=N`, `play=N`).
-* To try it: set `"automation_enabled": true`, run
-  `python automation/test_poker_ui.py`, then `python app.py` and Start Tracker.
-  `python tools/test_automation_demo.py` runs five scripted hands plus a stop
-  against the test table with real clicks and prints PASS/FAIL, without changing
-  the config.
-* Move the mouse into a screen corner to trigger PyAutoGUI's fail-safe, which
-  halts the controller for the session.
 
 ### Scenario Engine (dry run)
 

@@ -107,10 +107,9 @@ UNSEEN = "unseen"                # possible, but no recorded hand matches it
 def symbols(card):
     """"AS" as "A<spade>". Display only; the stored notation never changes.
 
-    The suit characters are written here rather than imported from
-    automation/test_betting_screen.py, which defines the same four: that module
-    is the betting automation and this one is a read-only display. A test keeps
-    the two tables equal so they cannot drift.
+    The betting-automation module that once also defined these four suit
+    characters has been removed - the tracker is read-only - so this is now
+    the only copy.
     """
     if not card or len(card) < 2:
         return "--"

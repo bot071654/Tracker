@@ -49,8 +49,6 @@ def session(tmp_path, monkeypatch):
     monkeypatch.setattr(se, "load_engine_config", lambda: se.EngineConfig())
     monkeypatch.setattr(lv, "SESSIONS", str(tmp_path))
     monkeypatch.setattr(lv, "MIN_FRAME_GAP", 0.0)          # scripted polls take no time
-    from automation import mouse_controller as mc
-    monkeypatch.setattr(mc, "load_mouse_config", mc.load_mouse_config)   # undone after the test
     lv.force_read_only()
 
     folder = str(tmp_path / "s1")
@@ -170,13 +168,19 @@ def test_revision_after_confirmation_is_a_false_confirmation():
     assert info["slots"]["flop_1"]["latency_ms"] == 200
 
 
-def test_read_only_mode_forces_automation_off_and_never_loads_pyautogui():
+def test_read_only_mode_never_loads_pyautogui():
+    """The permanent invariant, in a fresh process: nothing here ever touches it.
+
+    There is no Action Controller left to force off - it was removed
+    entirely, along with PyAutoGUI as a dependency. What is checked, in a
+    process of its own so a prior import elsewhere cannot hide the answer,
+    is that using the tracker normally never loads it.
+    """
     import subprocess
 
     code = ("import sys; sys.path.insert(0, 'tools'); import live_validation as lv; "
-            "lv.force_read_only(); from automation import mouse_controller as mc; "
+            "lv.force_read_only(); "
             "import queue, tracker; t = tracker.Tracker({'monitor': 1}, queue.Queue()); "
-            "print(mc.load_mouse_config().automation_enabled, "
-            "t._run_action_controller('WAITING', {}, None), 'pyautogui' in sys.modules)")
+            "print('pyautogui' in sys.modules)")
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, cwd=ROOT)
-    assert out.stdout.strip().splitlines()[-1] == "False None False", out.stderr[-800:]
+    assert out.stdout.strip().splitlines()[-1] == "False", out.stderr[-800:]

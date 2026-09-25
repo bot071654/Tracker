@@ -60,11 +60,9 @@ import tkinter.font as tkfont
 from poker import scenario_engine as se
 from poker import scenarios as scenario_rules
 
-# The BONUS button's name. Deliberately NOT imported from
-# automation.mouse_controller, where the same string is defined: that module
-# is the betting automation, and the banner is a read-only display that has no
-# business importing it. A test asserts the two stay equal, so they cannot
-# drift apart without something failing.
+# The BONUS button's name. The betting-automation module that once also
+# defined this string has been removed - the tracker is read-only - so this
+# is now the only copy, kept as its own constant rather than a magic string.
 BONUS = "bonus"
 
 # -- what each existing decision value is called on screen ---------------------

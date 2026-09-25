@@ -8,11 +8,13 @@
     LIVE TABLE -> MSS capture -> card recognition -> CardMemory -> Scenario Engine
                -> PLAY / DON'T_PLAY / WAIT -> UI display
 
-READ ONLY. The Action Controller is forced OFF in this process whatever
-config/mouse_controller.json says, and the run fails loudly if PyAutoGUI was
-ever imported. Nothing is clicked, typed or sent to the game. The tracker,
-recognition, CardMemory and Scenario Engine run unmodified; this tool only
-watches what they emit.
+READ ONLY. The betting-automation module this once had to force off has been
+removed entirely, along with PyAutoGUI as a dependency - there is nothing
+left to switch off. What this still checks, and will keep checking regardless
+of what the codebase grows next, is the permanent invariant: the run fails
+loudly if PyAutoGUI is ever loaded anyway. Nothing is clicked, typed or sent
+to the game. The tracker, recognition, CardMemory and Scenario Engine run
+unmodified; this tool only watches what they emit.
 
 What is recorded, in logs/live_validation/<SESSION>/:
 
@@ -184,14 +186,16 @@ def table_area(frame, origin, regions):
 
 
 def force_read_only():
-    """The Action Controller cannot be enabled in this process."""
-    from automation import mouse_controller as mc
+    """The permanent invariant this tool exists to prove: no PyAutoGUI, ever.
 
-    def disabled(path=None):
-        return mc.MouseControllerConfig(automation_enabled=False).validate()
-
-    mc.load_mouse_config = disabled
-    assert disabled().automation_enabled is False
+    There used to be an Action Controller here to force disabled - it has
+    been removed entirely, and PyAutoGUI along with it as a dependency, so
+    there is nothing left to switch off. What is still worth checking, and
+    will remain worth checking regardless of what this codebase grows next:
+    that this read-only recording session has not somehow loaded it anyway.
+    """
+    assert "pyautogui" not in sys.modules, (
+        "pyautogui is loaded; this tool must remain strictly read-only")
 
 
 def install_tracker_hooks(recorder):

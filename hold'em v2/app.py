@@ -28,6 +28,7 @@ from poker import scenarios as scenario_rules
 from poker.hand_record import build_hand_record, hands_so_far
 from poker import teaching
 from recognition import result_panel, table_layout
+import window_focus
 from recognition.dealer_watch import describe_slot
 from recognition.card_recognizer import TemplatesMissingError, template_status
 from tracker import Tracker, card_status, derive_state, read_table
@@ -64,6 +65,13 @@ FIT_TO_SCREEN = 100_000
 # consecutive player wins is ever counted, and a rule asking for a longer run
 # than this cannot be built in the rule window.
 HISTORY_ROUNDS = 10
+
+# The status line while the game window is not in front. Grey rather than red:
+# a paused tracker is waiting, not broken.
+PAUSED_GREY = "#777777"
+ACTIVE_GREEN = "#0b6"
+GAME_ACTIVE_STATUS = "TRACKING ACTIVE — GAME ACTIVE"
+GAME_PAUSED_STATUS = "TRACKING PAUSED — GAME NOT ACTIVE"
 
 
 class App:
@@ -221,8 +229,21 @@ class App:
                   font=("Segoe UI", 15, "bold")).pack(anchor="w")
 
         self.status_var = tk.StringVar(value="Status: STOPPED")
-        ttk.Label(frame, textvariable=self.status_var,
-                  font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(4, 8))
+        # Kept, so a paused tracker can grey the line out. set_status owns the
+        # colour, so every other caller puts it back without knowing it exists.
+        self.status_label = ttk.Label(frame, textvariable=self.status_var,
+                                      font=("Segoe UI", 10, "bold"))
+        self.status_label.pack(anchor="w", pady=(4, 8))
+
+        # Whether the game window is in front, on its own line ABOVE the
+        # status. Its own line rather than part of the status text because the
+        # two say different things and both are wanted at once: this one is
+        # about the game window, the one below is about the round. Shown only
+        # while the tracker is watching for it - with no game_window_title
+        # configured nothing is being checked, so nothing is claimed.
+        self.focus_var = tk.StringVar(value="")
+        self.focus_label = ttk.Label(frame, textvariable=self.focus_var,
+                                     font=("Segoe UI", 10, "bold"))
 
         buttons = ttk.Frame(frame)
         buttons.pack(fill="x")
@@ -705,8 +726,15 @@ class App:
                 logger.info("Could not count results: %s", exc)
         threading.Thread(target=work, daemon=True).start()
 
-    def set_status(self, text):
+    def set_status(self, text, paused=False):
+        """The one status line. `paused` greys it; anything else restores it.
+
+        The colour is set here rather than by the caller that greys it, so a
+        status set anywhere else - STOPPED, RUNNING, a frame's state - puts it
+        back without having to know a paused state exists.
+        """
         self.status_var.set("Status: %s" % text)
+        self.status_label.configure(foreground=PAUSED_GREY if paused else "")
 
     def set_message(self, text):
         self.message_var.set(text)
@@ -792,11 +820,23 @@ class App:
             # Hidden, and with the last session's decision forgotten, until
             # this session's scenario engine produces one.
             self.decision_banner.start()
+        # Nothing is claimed about the game window until the tracker's first
+        # look reports one - and with no game_window_title set it never will.
+        self._hide_focus_line()
         # Frames the last session left in the queue are not about this one.
         # The guard in _handle_event drops them while stopped, but tracking is
         # true again from here on and nothing downstream could tell them from
         # this session's own, so they go before the new tracker produces any.
         self._drop_queued_updates()
+        # self.config was read once at App.__init__ and is never reloaded
+        # after that, so a title typed into config.json while the app is
+        # already running would otherwise sit there unused until the whole
+        # application is relaunched - Stop then Start would not be enough.
+        # Only this one key is re-read, not the whole file: everything else
+        # (regions, thresholds) keeps whatever this session already has,
+        # including anything Calibrate wrote in memory.
+        self.config["game_window_title"] = load_config().get(
+            "game_window_title", "")
         self.tracker = Tracker(self.config, self.events)
         self.tracker.start()
         self.set_status("RUNNING")
@@ -824,6 +864,8 @@ class App:
             # stopped are still waiting to be drained, and the banner must
             # refuse them rather than reappear over whatever is on screen now.
             self.decision_banner.stop()
+        # The session is over, so there is no game window to be in front of.
+        self._hide_focus_line()
         # The voice is silenced here for the same reason and with the same
         # unconditionality: the announcer's queue outlives the tracker exactly
         # as the window's event queue does, so a decision from the round that
@@ -1044,20 +1086,25 @@ class App:
 
     def _handle_event(self, kind, payload):
         if kind == "update":
-            if not self.tracking:
-                # A frame from a session that has ended. The queue outlives the
-                # tracker, so these arrive after Stop and after a thread that
-                # ended on its own, and handling one repaints the status line
-                # back to "RUNNING - ..." about a table nobody is watching any
-                # more. Dropped whole rather than per-widget: the same payload
-                # also feeds the decision banner, the voice and the debug
-                # window, and none of them wants an ended session's frame.
+            if not self.tracking or self.tracker.focus.paused:
+                # A frame from a session that has ended, or from a poll the
+                # tracker's own queue is only now catching up to after the
+                # game already went out of focus - the queue outlives both.
+                # self.tracker.focus.paused is read live rather than from
+                # anything this event itself carries, because the "focus"
+                # event for THIS pause may still be sitting further back in
+                # the same queue: by the time it is processed here it would
+                # already be too late. Dropped whole rather than per-widget:
+                # the same payload also feeds the decision banner, the voice
+                # and the debug window, and none of them wants a stale frame.
                 return
             self._show_reading(payload)
             self._update_ante_alert(payload)
             window = self.debug_window
             if window is not None and window.winfo_exists():
                 window.show(payload)
+        elif kind == "focus":
+            self._show_focus(payload)
         elif kind == "saved":
             self._show_saved(payload)
         elif kind == "duplicate":
@@ -1390,6 +1437,69 @@ class App:
             return "muted"
         return "the queue was full, or it was already said this round"
 
+    def _show_focus(self, state):
+        """The tracker paused or resumed because the game window moved.
+
+        Two things, and no more: the line that says which state the tracker is
+        in, and the decision banner.
+
+        The banner has to come down. It is always-on-top and has no title bar,
+        so a decision left on it while the person is in another application
+        sits over that application, about a table nobody is looking at - the
+        same fault App.stop() already guards against, for the same reason.
+        It is taken down with its own lifecycle, the one the tracker's start
+        and stop use.
+
+        Nothing else is told. No hand is recorded, nothing is announced, no
+        decision is made and CardMemory is not touched: the tracker has simply
+        stopped feeding this window, which is what pausing means.
+
+        Refused when not tracking, for the same reason an update is: a Stop
+        pressed while the game was behind something else must leave the window
+        reading STOPPED, and coming back to the game must not undo it.
+        """
+        if not self.tracking:
+            return
+        if state == window_focus.GAME_INACTIVE:
+            # The pre-round alert first, because it shares this banner and
+            # keeps its own record of what is on it. Nothing polls that record
+            # while the tracker is paused, so left alone it still says an ANTE
+            # is showing - and _show_engine_decision steps aside for an alert
+            # that is not there any more.
+            if self.ante_alert is not None:
+                self._apply_ante_event(self.ante_alert.reset())
+            if self.decision_banner is not None:
+                self.decision_banner.stop()
+            self._show_focus_line(GAME_PAUSED_STATUS, PAUSED_GREY)
+            # The status line keeps the last reading's words - "RUNNING -
+            # FLOP" - because that is genuinely the last thing seen. Greyed,
+            # so it reads as frozen rather than as still happening. The next
+            # frame after the person comes back calls set_status, which puts
+            # the colour back without knowing any of this.
+            self.status_label.configure(foreground=PAUSED_GREY)
+        else:
+            if self.decision_banner is not None:
+                # start(), not anything that shows: the banner comes back
+                # empty and waits for this session's next decision. Returning
+                # to the game is not itself a decision.
+                self.decision_banner.start()
+            self._show_focus_line(GAME_ACTIVE_STATUS, ACTIVE_GREEN)
+            self.status_label.configure(foreground="")
+
+    def _show_focus_line(self, text, colour):
+        """Put the game-window line above the status, and keep it there."""
+        self.focus_var.set(text)
+        self.focus_label.configure(foreground=colour)
+        if not self.focus_label.winfo_ismapped():
+            self.focus_label.pack(anchor="w", pady=(4, 0),
+                                  before=self.status_label)
+
+    def _hide_focus_line(self):
+        """No tracking session, so nothing to say about the game window."""
+        self.focus_var.set("")
+        if self.focus_label.winfo_ismapped():
+            self.focus_label.pack_forget()
+
     def _show_saved(self, payload):
         record, row = payload["record"], payload["row"]
         # The round that just finished is what the pre-round rules ask about,
@@ -1704,7 +1814,21 @@ def main():
     setup_logging()
     logger.info("Application startup")
     make_dpi_aware()
+    # Captured before tk.Tk() exists, so the window it names is whatever the
+    # person was actually looking at - the poker game, say - not the tracker
+    # itself. See window_focus.py.
+    previous_foreground = window_focus.capture_foreground_window()
     root = tk.Tk()
+    # tk.Tk() alone does not steal the foreground - confirmed directly, on
+    # this real sequence: it only happens once Tk actually maps the window,
+    # which is idle, lazy work the event loop does on its own schedule.
+    # update_idletasks() forces that mapping - and with it, the steal - to
+    # happen right here, where it can still be corrected, instead of letting
+    # it happen implicitly later (inside App's own widget building, or
+    # whoever calls this next) once this one-shot restore has already run
+    # and found nothing yet to fix.
+    root.update_idletasks()
+    window_focus.restore_foreground_window(previous_foreground)
     App(root)
     root.mainloop()
 

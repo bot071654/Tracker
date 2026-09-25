@@ -51,6 +51,12 @@ DEFAULT_CONFIG = {
     # table appears, so 0.2s is roughly 5% of one core at rest - fast enough
     # to see a short-lived card several times without running hot.
     "poll_interval_seconds": 0.20,
+    # Pause tracking while the game window is not in front. Part of the
+    # foreground window's title, matched case-insensitively - "Chrome", or
+    # something from the casino page's own title. Empty means never pause,
+    # which is how the tracker behaved before the setting existed. It matches
+    # a WINDOW title, not a browser tab; see window_focus.py.
+    "game_window_title": "",
     "confidence_threshold": 0.62,     # minimum template-match score to accept a card
     # The dealer's cards are held to a higher standard than the rest, because
     # they are only face up for a second or two at the showdown. Every other

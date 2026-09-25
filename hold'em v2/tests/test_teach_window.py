@@ -558,6 +558,111 @@ def test_a_cancelled_teaching_cannot_be_resumed(window, root, live):
     assert str(window.activate_button.cget("state")) == "disabled"
 
 
+# -- 29b. the action buttons can actually be reached --------------------------
+#
+# The reported fault was "there is no Save & Test button and no Activate
+# button". Both had always been built; the window simply laid out to 1282
+# pixels, was not resizable and did not scroll, so on a 720-pixel screen the
+# action bar sat about 375 pixels below the bottom edge with no way to get to
+# it. These check the part that failed - that the buttons are reachable - and
+# not merely that they exist.
+
+def test_the_action_buttons_exist_and_are_labelled(window, root):
+    root.update()
+    assert str(window.test_button.cget("text")) == "Save & Test"
+    assert str(window.activate_button.cget("text")) == "Activate Rule"
+
+
+def test_the_action_buttons_are_not_inside_the_scrolling_area(window, root):
+    """A button inside the canvas is clipped by it, which is how they vanished."""
+    root.update()
+    for button in (window.test_button, window.activate_button):
+        parent = button.master
+        while parent is not None and parent is not window:
+            assert parent is not window.canvas, (
+                "%s is inside the scrolling canvas and can be clipped"
+                % button.cget("text"))
+            parent = parent.master
+
+
+def test_the_window_is_no_taller_than_the_screen(window, root):
+    root.update()
+    assert window.winfo_reqheight() <= window.winfo_screenheight(), (
+        "the window wants %d pixels on a %d-pixel screen"
+        % (window.winfo_reqheight(), window.winfo_screenheight()))
+
+
+def test_the_whole_form_is_reachable_by_scrolling(window, root):
+    """The form is taller than the window, so the scrollregion must cover it."""
+    root.update()
+    region = [int(float(value))
+              for value in str(window.canvas.cget("scrollregion")).split()]
+    assert region, "the canvas has no scrollregion"
+    assert region[3] - region[1] >= window.body.winfo_reqheight()
+
+
+def test_the_action_bar_stays_put_when_the_form_is_scrolled(window, root):
+    """Scrolling the form must not carry the buttons off with it."""
+    root.update()
+    before = window.test_button.winfo_y()
+    window.canvas.yview_moveto(1.0)
+    root.update()
+    assert window.test_button.winfo_y() == before
+
+
+def test_the_window_can_be_made_taller_but_not_wider(window, root):
+    """Fixed height was half the fault; the width is fixed on purpose."""
+    root.update()
+    assert window.resizable() == (False, True)
+
+
+def test_the_window_opens_fully_inside_the_screen(window, root):
+    """Sizing it to fit is not enough if the window manager puts it low.
+
+    A 624-pixel window placed at y=173 on a 720-pixel screen hangs its lower
+    edge off the bottom, which is where the action bar lives.
+    """
+    root.update()
+    width, height = window.winfo_width(), window.winfo_height()
+    if width <= 1 or height <= 1:               # pragma: no cover - unmapped
+        width, height = window.winfo_reqwidth(), window.winfo_reqheight()
+    x, y = window.winfo_x(), window.winfo_y()
+    screen_width = window.winfo_screenwidth()
+    screen_height = window.winfo_screenheight()
+
+    assert x >= 0 and y >= 0, "the window starts off the top or left edge"
+    assert x + width <= screen_width, (
+        "the window runs %d px past the right edge" % (x + width - screen_width))
+    assert y + height <= screen_height, (
+        "the window runs %d px past the bottom edge"
+        % (y + height - screen_height))
+
+
+def test_a_screen_too_short_still_shows_the_action_bar(root, snapshot, tmp_path,
+                                                        monkeypatch):
+    """The form cannot shrink to fit a tiny screen, so the window is clamped.
+
+    The action bar is packed against the bottom of the window, so a window no
+    taller than the screen always has its buttons on it; the body scrolls.
+    """
+    monkeypatch.setattr(rule_windows.TeachScenarioWindow, "winfo_screenheight",
+                        lambda self: 300, raising=False)
+    made = rule_windows.TeachScenarioWindow(
+        root, snapshot, rules=rules(), load_rows=lambda: ROWS,
+        save_path=str(tmp_path / "scenarios.json"))
+    try:
+        root.update()
+        height = made.winfo_height()
+        if height <= 1:                         # pragma: no cover - unmapped
+            height = made.winfo_reqheight()
+        assert height <= 300, "the window is taller than the screen it claims"
+        assert made.winfo_y() >= 0
+        inside = made.test_button.winfo_rooty() - made.winfo_rooty()
+        assert 0 <= inside < height, "the action bar is not inside the window"
+    finally:
+        made.destroy()
+
+
 # -- 30. the manual rule builders still work ----------------------------------
 
 def test_the_preround_rule_window_still_opens(root, scratch):

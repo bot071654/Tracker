@@ -37,18 +37,9 @@ def test_the_other_two_real_decisions_are_also_labelled():
 
 def test_every_label_key_is_a_constant_the_project_already_had():
     """No invented decision values - each key comes from existing code."""
-    from automation.mouse_controller import BONUS as MOUSE_BONUS
-
     known = {scenario_rules.ANTE, scenario_rules.SKIP, scenario_rules.PLAY,
-             scenario_rules.FOLD, se.PLAY, se.DONT_PLAY, se.WAIT, MOUSE_BONUS}
+             scenario_rules.FOLD, se.PLAY, se.DONT_PLAY, se.WAIT, db.BONUS}
     assert set(DECISION_LABELS) == known
-
-
-def test_the_bonus_string_matches_the_one_in_the_automation_module():
-    """It is duplicated rather than imported; this stops the two drifting."""
-    from automation.mouse_controller import BONUS as MOUSE_BONUS
-
-    assert db.BONUS == MOUSE_BONUS
 
 
 def test_the_banner_never_imports_the_betting_automation():

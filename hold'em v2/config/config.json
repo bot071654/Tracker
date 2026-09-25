@@ -61,6 +61,7 @@
         768
     ],
     "poll_interval_seconds": 0.2,
+    "game_window_title": "Casino - Google Chrome",
     "confidence_threshold": 0.62,
     "dealer_min_confidence": 0.8,
     "dealer_min_total": 1.5,

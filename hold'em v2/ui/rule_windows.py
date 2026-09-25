@@ -319,16 +319,103 @@ class TeachScenarioWindow(tk.Toplevel):
         self.activated = False
 
         self.title("Teach / Correct Scenario")
-        self.resizable(False, False)
+        # Vertically resizable now. The captured scenario, the scope list and
+        # the conflict report come to about 1280 pixels together, so a fixed
+        # height on a laptop screen left Save & Test and Activate several
+        # hundred pixels below the bottom edge, with no way to scroll or
+        # resize to them. The width stays fixed: the text panes are sized in
+        # characters, not pixels.
+        self.resizable(False, True)
         self.attributes("-topmost", True)
 
-        frame = ttk.Frame(self, padding=12)
-        frame.pack(fill="both", expand=True)
-        self._build_scenario(frame)
-        self._build_choice(frame)
-        self._build_preview(frame)
-        self._build_buttons(frame)
+        outer = ttk.Frame(self, padding=12)
+        outer.pack(fill="both", expand=True)
+
+        # The action bar is packed against the bottom BEFORE the content above
+        # it, so Tk reserves its height first and no amount of content can
+        # push the buttons off the window. That ordering is the fix.
+        self.actions = ttk.Frame(outer)
+        self.actions.pack(side="bottom", fill="x")
+
+        # Everything else scrolls, in the same way the main window does.
+        self.canvas = tk.Canvas(outer, highlightthickness=0, borderwidth=0,
+                                takefocus=0)
+        self.vscroll = ttk.Scrollbar(outer, orient="vertical",
+                                     command=self.canvas.yview)
+        self.canvas.configure(yscrollcommand=self.vscroll.set)
+        self.vscroll.pack(side="right", fill="y")
+        self.canvas.pack(side="left", fill="both", expand=True)
+
+        self.body = ttk.Frame(self.canvas)
+        self._body_id = self.canvas.create_window((0, 0), window=self.body,
+                                                  anchor="nw")
+        self.body.bind("<Configure>", self._on_body_configure)
+        self.canvas.bind("<Configure>", self._on_canvas_configure)
+        self.bind("<MouseWheel>", self._on_mousewheel)
+
+        self._build_scenario(self.body)
+        self._build_choice(self.body)
+        self._build_preview(self.body)
+        self._build_buttons(self.actions)
         self.refresh()
+        self._fit_to_screen()
+
+    # -- keeping the whole window reachable ---------------------------------
+
+    def _on_body_configure(self, _event=None):
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
+    def _on_canvas_configure(self, event):
+        """The content is as wide as the canvas, so nothing scrolls sideways."""
+        self.canvas.itemconfigure(self._body_id, width=event.width)
+
+    def _on_mousewheel(self, event):
+        self.canvas.yview_scroll(-1 if event.delta > 0 else 1, "units")
+
+    def _fit_to_screen(self):
+        """Open as tall as the content wants, but never taller than the screen.
+
+        The canvas has no opinion about its own height, so it is told the
+        content's - capped, because that content is taller than a laptop
+        screen and the part past the bottom edge used to be unreachable.
+        """
+        self.update_idletasks()
+        room = self.winfo_screenheight() - self.actions.winfo_reqheight() - 120
+        self.canvas.configure(
+            width=self.body.winfo_reqwidth(),
+            height=max(200, min(self.body.winfo_reqheight(), room)))
+        self.update_idletasks()
+        self.geometry("")               # size to the new request
+        self._on_body_configure()
+        self._place_on_screen()
+
+    def _place_on_screen(self):
+        """Move the window fully onto the screen, when it fits.
+
+        Sizing it is not enough. A window manager places a new Toplevel
+        relative to its parent, which on a short screen puts a 624-pixel
+        window at y=173 and hangs its lower edge - and with it the action
+        bar - off the bottom. Nothing here resizes the content: it clamps the
+        window's own rectangle, and only ever inwards.
+
+        On a screen too small for the window even at its minimum, the size is
+        clamped to the screen rather than the position: the action bar is
+        packed against the bottom of the window, so a window no taller than
+        the screen always has its buttons on it, and the body goes on
+        scrolling.
+        """
+        self.update_idletasks()
+        width = self.winfo_width()
+        height = self.winfo_height()
+        if width <= 1 or height <= 1:           # not laid out yet
+            width, height = self.winfo_reqwidth(), self.winfo_reqheight()
+        screen_width, screen_height = self.winfo_screenwidth(), self.winfo_screenheight()
+        width, height = min(width, screen_width), min(height, screen_height)
+        # max(0, ...) last, so a window that cannot fit still starts at the
+        # top-left corner rather than at a negative coordinate.
+        x = max(0, min(self.winfo_x(), screen_width - width))
+        y = max(0, min(self.winfo_y(), screen_height - height))
+        self.geometry("%dx%d+%d+%d" % (width, height, x, y))
 
     # -- the captured scenario ---------------------------------------------
 

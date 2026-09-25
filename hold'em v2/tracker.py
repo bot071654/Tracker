@@ -21,13 +21,13 @@ from config.settings import (
 )
 from database import db
 from export import excel_export
-from automation import mouse_controller
 from poker import scenario_engine
 from poker import scenarios as scenario_rules
 from poker.hand_record import build_hand_record, hands_so_far
 from recognition import result_panel, table_layout
 from recognition.live_diagnostics import LiveDiagnostics
 from recognition import dealer_crop, dealer_watch
+import window_focus
 from recognition.card_recognizer import (
     TemplatesMissingError, read_slot, undecided_half,
 )
@@ -667,21 +667,16 @@ class Tracker:
         # The Scenario Engine, dry run: works out PLAY / DON'T_PLAY / WAIT from
         # the confirmed player and flop cards and logs why. It never acts.
         self.scenario_monitor = None
-        # The Action Controller (automation/mouse_controller.py): off unless
-        # config/mouse_controller.json enables it, and then it may only click
-        # the local TEST poker table. Loaded on the first poll.
-        self.action_config = None
-        self.action_controller = None
-        self.hand_cycle = None
-        # The pre-round rules (poker/scenarios.py) decide ANTE or SKIP for each
-        # new hand the controller sees; they ask about the rounds just played.
-        self.preround_scenarios = None
-        self.recent_rounds = []          # finished hand records, most recent first
         self.timer = RoundTimer()
         self.memory = CardMemory(
             clear_frames=config.get("clear_frames", 3),
             confirm_frames=config.get("change_confirm_frames", 2),
         )
+        # Pause while the game window is not in front. Off unless
+        # config["game_window_title"] names it, in which case _run skips the
+        # whole poll rather than reading somebody else's screen. See
+        # window_focus.py for what a window title can and cannot tell you.
+        self.focus = window_focus.FocusGate(config.get("game_window_title"))
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -701,8 +696,6 @@ class Tracker:
         if self._thread is not None:
             self._thread.join(timeout=3)
         self._thread = None
-        if self.action_controller is not None:
-            self.action_controller.close()
         logger.info("Tracker stopped")
 
     # -- internals ---------------------------------------------------------
@@ -728,6 +721,18 @@ class Tracker:
         self._check_resolution()
         while not self._stop.is_set():
             started = time.time()
+            # The one gate, in front of the one method that does the work.
+            # _tick is where the screen is read, where CardMemory is advanced,
+            # where the round timer moves, where the scenario engine decides
+            # and where the update every consumer downstream is fed from is
+            # emitted - so not calling it is the whole of the pause. Nothing
+            # downstream needs a second check.
+            moved = self.focus.observe()
+            if moved is not None:
+                self._emit("focus", moved)
+            if self.focus.paused:
+                self._stop.wait(interval)
+                continue
             try:
                 self._tick()
             except TemplatesMissingError as exc:
@@ -1009,71 +1014,6 @@ class Tracker:
                 logger.warning("Scenario engine failed: %s", exc)
             return None
 
-    def _preround_decision(self):
-        """(action, reason) from the pre-round rules for the hand starting now.
-
-        Rules that cannot be read give SKIP: when in doubt, nothing is clicked.
-        """
-        try:
-            if self.preround_scenarios is None:
-                self.preround_scenarios = scenario_rules.load()
-            previous = self.recent_rounds[0] if self.recent_rounds else None
-            action, rule = scenario_rules.decide_preround(
-                self.preround_scenarios, previous, self.recent_rounds)
-            reason = rule["name"] if rule else "default rule"
-            return action, reason
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Pre-round rules unavailable, skipping the ante: %s", exc)
-            return scenario_rules.SKIP, "pre-round rules unavailable"
-
-    def _remember_round(self, record):
-        """Keep a finished hand for the pre-round rules, whether or not it is stored."""
-        if self.recent_rounds and \
-                self.recent_rounds[0].get("hand_fingerprint") == record.get("hand_fingerprint"):
-            return
-        self.recent_rounds.insert(0, record)
-        del self.recent_rounds[10:]
-
-    def _run_action_controller(self, state, seen, scenario):
-        """Pass this poll's Scenario Engine result to the Action Controller.
-
-        Returns the controller's status for the UI, or None when automation is
-        disabled - in which case nothing else here runs and PyAutoGUI is never
-        loaded. Calculates nothing: a hand starts when the table has been empty
-        after showing cards (HandCycle), and the decision is the engine's. The
-        controller only queues a click, so this never holds up the poll, and a
-        failure here never stops one.
-        """
-        try:
-            if self.action_config is None:
-                self.action_config = mouse_controller.load_mouse_config()
-            if not self.action_config.automation_enabled:
-                return None
-            if self.action_controller is None:
-                self.action_controller = mouse_controller.ActionController(self.action_config)
-                self.hand_cycle = mouse_controller.HandCycle(self.action_config.ante_empty_polls)
-            table_empty = state == WAITING and not any(seen.values())
-            hand, started = self.hand_cycle.observe(table_empty)
-            if hand is None:
-                return self.action_controller.status()
-            if started:
-                # The tracker's round id at the start of the hand: a scenario
-                # from an earlier round id is never acted on in this hand.
-                action, reason = self._preround_decision()
-                self.action_controller.handle_scenario_result(
-                    {"decision": mouse_controller.ANTE_REQUIRED,
-                     "round_id": self.memory.generation,
-                     "preround_action": action, "preround_rule": reason},
-                    action_round=hand)
-            if scenario is not None:
-                self.action_controller.handle_scenario_result(scenario, action_round=hand)
-            return self.action_controller.status()
-        except Exception as exc:  # noqa: BLE001 - automation must never block tracking
-            if self._panel_note.get("action_error") != str(exc):
-                self._panel_note["action_error"] = str(exc)
-                logger.warning("Action controller failed: %s", exc)
-            return None
-
     def _diagnose(self, captured, reads, cards, state, panels):
         """Compare this frame's raw readings with memory, the panel and each other.
 
@@ -1305,7 +1245,9 @@ class Tracker:
         self._timing["total"] = (clock() - started) * 1000.0
         dealer = self._watch_dealer(reads, cards, state)
         scenario = self._run_scenario_engine(cards, reads)
-        action = self._run_action_controller(state, seen, scenario)
+        # No automation: read-only. Kept in the payload as None, exactly the
+        # value it already carried whenever automation was configured off.
+        action = None
 
         self._emit("update", {
             "state": state,
@@ -1416,7 +1358,6 @@ class Tracker:
             confidences,
         )
         logger.info("Timing: %s", self.timer.describe())
-        self._remember_round(record)
 
         try:
             # The panels beside the table outlive the cards in the middle of
