@@ -14,10 +14,15 @@ When it fires
 -------------
 Betting opens when the table has been cleared after a hand. So a new betting
 window is `empty_polls` updates in a row with no card on the table, after the
-table last showed cards (or the first empty table after the tracker starts).
-Each betting window alerts once. The banner goes away when the next deal
-appears (the player's cards are on the table - betting has closed), after
-`timeout` seconds, when you dismiss it, or when the tracker stops.
+table last showed cards. An empty table alone is not enough: the casino's
+lobby, a table still loading, and the tracker's own cold start all look
+exactly like that too, and none of them is a betting window. The first alert
+of a session only fires once a real hand's cards have actually been seen and
+then gone again - until then the window shows a neutral waiting state, never
+a guessed ANTE or SKIP. Each betting window alerts once. The banner goes away
+when the next deal appears (the player's cards are on the table - betting has
+closed), after `timeout` seconds, when you dismiss it, or when the tracker
+stops.
 
 AnteAlertLogic is plain Python so the timing can be tested without a display;
 AnteAlertBanner is the window.
@@ -42,21 +47,27 @@ COLOURS = {scenario_rules.ANTE: ("#0b7a3b", "#ffffff"),     # green: ante
 class AnteAlertLogic:
     """Decides when the banner appears and disappears. No Tk, no clock of its own."""
 
-    def __init__(self, empty_polls=3, timeout=25.0):
+    def __init__(self, empty_polls=1, timeout=25.0):
         self.empty_polls = max(1, int(empty_polls))
         self.timeout = float(timeout)
         self._empty = 0
         self._had_cards = False
-        self._started = False            # a first empty table after start counts
         self.showing = None              # (action, reason, shown_at) while visible
         self.alerts = 0
+        # True once real player cards have been seen at least once this
+        # session - never reset to False except by reset(). An empty table is
+        # not proof a hand just ended: it is also what the casino lobby, a
+        # loading table, or the tracker's own first poll look like, and none
+        # of those is a betting window. Read by the window to show a neutral
+        # "waiting for the first round" status instead of guessing ANTE.
+        self.seen_a_hand = False
 
     def reset(self):
         """Tracker stopped or restarted: forget the table, hide anything shown."""
         event = self._hide("tracker stopped") if self.showing else None
         self._empty = 0
         self._had_cards = False
-        self._started = False
+        self.seen_a_hand = False
         return event
 
     def observe(self, state, seen, decide, now=None):
@@ -68,7 +79,17 @@ class AnteAlertLogic:
         None, (SHOW, action, reason) or (HIDE, why).
         """
         now = time.time() if now is None else now
-        table_empty = state == WAITING and not any((seen or {}).values())
+        # Betting opens once the PLAYER's seat clears - the same thing state
+        # WAITING already means (see tracker.derive_state, which looks at
+        # PLAYER_SLOTS only). Checked on player slots here too, not every
+        # slot: a real casino table can leave the dealer's cards or the board
+        # visibly up for the reveal a second or more after the player's seat
+        # is empty, and a still-visible, still-correctly-read card is truthy
+        # in `seen`. Checked across all nine slots, that held the alert back
+        # for as long as the reveal lasted - and whether the dealer's cards
+        # are still shown says nothing about whether the player may bet.
+        table_empty = state == WAITING and not any(
+            (seen or {}).get(slot) for slot in ("player_1", "player_2"))
 
         if self.showing:
             if not table_empty and any((seen or {}).get(slot) for slot in ("player_1", "player_2")):
@@ -79,14 +100,18 @@ class AnteAlertLogic:
         if not table_empty:
             self._empty = 0
             self._had_cards = True
+            self.seen_a_hand = True
             return None
 
         self._empty += 1
-        due = self._empty == self.empty_polls and (self._had_cards or not self._started)
+        # _had_cards, not "first poll counts": an empty table proves nothing
+        # by itself - it is also the lobby, a table still loading, or the
+        # tracker's own cold start. Only a real hand's cards actually having
+        # been seen and then gone again is evidence that betting has opened.
+        due = self._empty == self.empty_polls and self._had_cards
         if not due:
             return None
         self._had_cards = False
-        self._started = True
         action, reason = decide()
         if action not in COLOURS:
             logger.warning("[ANTE ALERT] unknown pre-round action %r - no alert", action)

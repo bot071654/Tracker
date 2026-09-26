@@ -25,10 +25,22 @@ def feed(logic, polls, seen, state="WAITING", start=0.0, step=0.2, decide=ante):
     return events
 
 
-def test_first_empty_table_after_start_alerts_once():
+def test_cold_start_never_alerts_no_matter_how_long_the_table_stays_empty():
+    """The casino lobby, a table still loading, and the tracker's own cold
+    start all look exactly like an empty table too - none of them is proof a
+    hand just ended, so none of them may guess ANTE or SKIP.
+    """
     logic = AnteAlertLogic(empty_polls=3)
-    events = feed(logic, 40, EMPTY)
-    assert events == [(SHOW, scenario_rules.ANTE, "rule says ante")]
+    assert feed(logic, 200, EMPTY) == []
+    assert logic.alerts == 0
+
+
+def test_the_first_alert_of_a_session_needs_a_real_hand_first():
+    logic = AnteAlertLogic(empty_polls=3)
+    assert feed(logic, 40, EMPTY) == []                        # cold start: nothing
+    assert feed(logic, 10, DEALT, state="PLAYER_CARDS", start=8.0) == []
+    assert feed(logic, 5, EMPTY, start=10.0) == [
+        (SHOW, scenario_rules.ANTE, "rule says ante")]
 
 
 def test_started_mid_hand_waits_for_the_table_to_clear():
@@ -39,7 +51,8 @@ def test_started_mid_hand_waits_for_the_table_to_clear():
 
 def test_hides_when_the_next_deal_appears_and_alerts_again_next_round():
     logic = AnteAlertLogic(empty_polls=3)
-    feed(logic, 5, EMPTY)
+    feed(logic, 10, DEALT, state="PLAYER_CARDS")               # a real hand, first
+    feed(logic, 5, EMPTY, start=2.0)                           # that hand ends: first alert
     assert feed(logic, 3, DEALT, state="PLAYER_CARDS", start=5.0) == [
         (HIDE, "cards dealt - betting closed")]
     assert feed(logic, 20, EMPTY, start=10.0) == [(SHOW, scenario_rules.ANTE, "rule says ante")]
@@ -48,20 +61,23 @@ def test_hides_when_the_next_deal_appears_and_alerts_again_next_round():
 
 def test_a_hand_passing_over_the_table_mid_betting_does_not_alert_twice():
     logic = AnteAlertLogic(empty_polls=3)
-    feed(logic, 5, EMPTY)
+    feed(logic, 10, DEALT, state="PLAYER_CARDS")
+    feed(logic, 5, EMPTY, start=2.0)                           # first alert
     # a covered / flickering poll with nothing readable is still an empty table
-    assert feed(logic, 30, EMPTY, start=1.0) == []
+    assert feed(logic, 30, EMPTY, start=3.0) == []
     assert logic.alerts == 1
 
 
 def test_times_out():
     logic = AnteAlertLogic(empty_polls=3, timeout=5.0)
+    feed(logic, 10, DEALT, state="PLAYER_CARDS", start=-2.0)
     feed(logic, 3, EMPTY)
     assert feed(logic, 1, EMPTY, start=6.0) == [(HIDE, "timed out")]
 
 
 def test_dismiss_and_reset():
     logic = AnteAlertLogic(empty_polls=1)
+    feed(logic, 1, DEALT, state="PLAYER_CARDS", start=-1.0)
     feed(logic, 1, EMPTY)
     assert logic.dismiss() == (HIDE, "dismissed") and logic.showing is None
     assert logic.dismiss() is None
@@ -72,17 +88,84 @@ def test_dismiss_and_reset():
 
 def test_skip_is_shown_too_and_unknown_actions_are_not():
     logic = AnteAlertLogic(empty_polls=1)
+    feed(logic, 1, DEALT, state="PLAYER_CARDS", start=-1.0)
     assert feed(logic, 1, EMPTY, decide=lambda: (scenario_rules.SKIP, "dealer won")) == [
         (SHOW, scenario_rules.SKIP, "dealer won")]
     other = AnteAlertLogic(empty_polls=1)
+    feed(other, 1, DEALT, state="PLAYER_CARDS", start=-1.0)
     assert feed(other, 1, EMPTY, decide=lambda: ("bet_everything", "?")) == []
 
 
 def test_the_rules_are_only_asked_when_an_alert_is_due():
     calls = []
     logic = AnteAlertLogic(empty_polls=3)
+    feed(logic, 10, DEALT, state="PLAYER_CARDS", start=-4.0)
     feed(logic, 30, EMPTY, decide=lambda: calls.append(1) or ante())
     assert len(calls) == 1
+
+
+# -- pre-round decision latency ------------------------------------------------
+#
+# A real session (logs/tracker.log, 2026-09-26) measured 0.47-1.78s between
+# the tracker's own state reaching WAITING (the player's seat already
+# confirmed empty - CardMemory's own clear_frames debounce) and the ANTE
+# alert firing. Both contributing causes are covered below: the alert's own
+# empty_polls re-debounce on top of an already-settled state, and requiring
+# every one of the nine slots - not just the player's - to read empty.
+
+STILL_REVEALING = {"player_1": None, "player_2": None,
+                   "dealer_1": "2D", "dealer_2": "QD", "river": "5D"}
+
+
+def test_a_lingering_dealer_or_board_reveal_does_not_delay_the_alert():
+    """The dealer's cards/board can stay correctly, confidently read on
+    screen for a moment after the player's seat is empty - a normal casino
+    reveal, not a misread. Before this fix, table_empty checked all nine
+    slots and this held the alert back for as long as the reveal lasted.
+    """
+    logic = AnteAlertLogic(empty_polls=1)
+    feed(logic, 1, DEALT, state="PLAYER_CARDS", start=-1.0)    # a real hand, first
+    assert feed(logic, 1, STILL_REVEALING) == [
+        (SHOW, scenario_rules.ANTE, "rule says ante")]
+
+
+def test_the_alert_no_longer_waits_several_polls_once_the_seat_is_confirmed_empty():
+    """state WAITING is already the debounced signal (CardMemory's
+    clear_frames). Re-confirming it for several more polls here was pure
+    latency: this is the exact behaviour change, measured in simulated time.
+    """
+    old_behaviour = AnteAlertLogic(empty_polls=3)          # the previous default
+    new_behaviour = AnteAlertLogic(empty_polls=1)           # the current default
+    poll_interval = 0.2                                     # config poll_interval_seconds
+
+    # A real hand first, for both - cold start is covered separately above.
+    old_behaviour.observe("PLAYER_CARDS", DEALT, ante, now=-poll_interval)
+    new_behaviour.observe("PLAYER_CARDS", DEALT, ante, now=-poll_interval)
+
+    old_events, new_events = [], []
+    for index in range(5):
+        now = index * poll_interval
+        old_events.append((now, old_behaviour.observe("WAITING", EMPTY, ante, now=now)))
+        new_events.append((now, new_behaviour.observe("WAITING", EMPTY, ante, now=now)))
+
+    old_fired_at = next(t for t, e in old_events if e)
+    new_fired_at = next(t for t, e in new_events if e)
+    assert new_fired_at == 0.0                              # fires on the first poll
+    assert old_fired_at == pytest.approx(0.4)                # the old, measured latency
+    assert old_fired_at - new_fired_at == pytest.approx(0.4)  # 400ms recovered, this scenario
+
+
+def test_default_construction_still_needs_a_real_hand_before_it_can_alert():
+    """AnteAlertLogic() with no arguments is the class's own recommended
+    default (empty_polls=1) - so a future caller cannot regress the latency
+    fix by forgetting to pass empty_polls. Cold start is still guarded even
+    at that default: it still needs a real hand seen first.
+    """
+    logic = AnteAlertLogic()
+    assert feed(logic, 40, EMPTY) == []                        # cold start: nothing
+    feed(logic, 1, DEALT, state="PLAYER_CARDS", start=8.0)
+    assert feed(logic, 1, EMPTY, start=8.2) == [
+        (SHOW, scenario_rules.ANTE, "rule says ante")]
 
 
 def test_preround_decision_uses_the_users_rules():
@@ -169,6 +252,9 @@ def test_app_shows_the_alert_from_the_users_rules(root, monkeypatch):
     application.scenarios = {"preround": {"default": scenario_rules.ANTE, "rules": [
         scenario_rules.preround_rule("Any", "Any", scenario_rules.SKIP,
                                      previous_winner=scenario_rules.DEALER)]}}
+    # A real hand first: an empty table alone (cold start) is no longer
+    # enough to alert - see test_cold_start_never_alerts_no_matter_how_long...
+    application._update_ante_alert({"state": "PLAYER_CARDS", "seen": dict(DEALT)})
     payload = {"state": "WAITING", "seen": dict(EMPTY)}
     for _ in range(3):
         application._update_ante_alert(payload)

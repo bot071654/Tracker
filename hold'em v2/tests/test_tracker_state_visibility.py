@@ -306,3 +306,63 @@ def test_mid_hand_start_does_not_change_what_the_scenario_panel_shows(applicatio
     deliver(application, started_mid_hand=True, decision=se.PLAY)
     mid_hand_decision = application.scenario_panel.decision_var.get()
     assert normal_decision == mid_hand_decision
+
+
+# -- cold start: no round has ever been seen this session --------------------
+#
+# Starting the tracker while the casino is still on the lobby/game-selection
+# screen looks exactly like an empty real table between hands - no cards
+# anywhere. AnteAlertLogic.seen_a_hand (ui/ante_alert.py) is the signal that
+# tells the two apart: it only becomes true once real player cards have
+# actually been observed, so an ante alert cannot fire on nothing but "the
+# table happens to be empty" the moment tracking begins.
+
+def cold_start_payload(round_id=1):
+    empty = {slot: None for slot in UI_CARDS}
+    return {"state": "WAITING", "round_id": round_id, "cards": empty,
+            "seen": dict(empty), "reads": {}, "held": {}, "panels": {},
+            "diagnostics": {}, "dealer": {}, "action": None,
+            "statuses": {}, "timing": {}, "emitted_at": None,
+            "uncertain": [], "started_mid_hand": False,
+            "scenario": {"decision": se.WAIT, "reason": "", "round_id": round_id}}
+
+
+def test_cold_start_shows_waiting_for_first_round_not_a_stale_or_guessed_decision(application):
+    begin(application)
+    for round_id in range(1, 30):
+        application.events.put(("update", cold_start_payload(round_id)))
+    application._poll_events()
+    application.root.update()
+
+    assert application.status_var.get() == "Status: RUNNING - WAITING FOR FIRST ROUND"
+    text = application.decision_banner.text
+    assert text not in ("ANTE NOW", "SKIP ROUND", "PLAY NOW", "DON'T PLAY")
+
+
+def test_the_status_returns_to_plain_waiting_once_a_real_hand_has_been_seen(application):
+    """The special cold-start wording is for the very first round only."""
+    begin(application)
+    application.events.put(("update", cold_start_payload(round_id=1)))
+    application._poll_events()
+    application.root.update()
+    assert "WAITING FOR FIRST ROUND" in application.status_var.get()
+
+    deliver(application, started_mid_hand=False, decision=se.WAIT)   # real cards seen
+    for round_id in range(2, 10):
+        application.events.put(("update", cold_start_payload(round_id)))
+    application._poll_events()
+    application.root.update()
+    assert application.status_var.get() == "Status: RUNNING - WAITING"
+
+
+def test_a_genuine_round_after_cold_start_still_reaches_ante_promptly(application):
+    """Cold start must not defeat the latency fix once a real round exists."""
+    begin(application)
+    application.events.put(("update", cold_start_payload(round_id=1)))
+    application._poll_events()
+    deliver(application, started_mid_hand=False, decision=se.WAIT)    # a real hand, dealt
+    application.events.put(("update", cold_start_payload(round_id=2)))  # that hand ends
+    application._poll_events()
+    application.root.update()
+
+    assert application.decision_banner.text in ("ANTE NOW", "SKIP ROUND")

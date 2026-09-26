@@ -241,6 +241,56 @@ def test_a_stale_ante_alert_event_after_stop_is_refused(application):
     assert_hidden(application)
 
 
+def new_round_payload(round_id):
+    """The tracker's own update once a round has just cleared: WAITING, empty."""
+    empty = {slot: None for slot in CARDS}
+    return {"state": "WAITING", "round_id": round_id, "cards": empty,
+            "seen": dict(empty), "reads": {}, "held": {}, "panels": {},
+            "diagnostics": {}, "dealer": {}, "action": None,
+            "statuses": {}, "timing": {}, "emitted_at": time.time(),
+            "uncertain": [], "scenario": {"decision": se.WAIT, "reason": "",
+                                          "round_id": round_id}}
+
+
+def test_the_previous_hands_decision_cannot_survive_the_ante_alert_firing(application):
+    """logs/tracker.log (2026-09-26): DON'T_PLAY must not still be showing once
+    the pre-round rule has something to say about the round that follows it.
+
+    One poll ends the hand and clears the table; the very next one is where
+    the ante alert becomes due. _update_ante_alert applies the ante event
+    before letting the engine's own decision draw, so DON'T_PLAY cannot win a
+    race against ANTE - proven here, not just read from the source.
+    """
+    begin(application)
+    deliver(application, se.DONT_PLAY)
+    assert shown(application)[2] == "DON'T PLAY"
+
+    application.events.put(("update", new_round_payload(round_id=2)))
+    application._poll_events()
+    application.root.update()
+
+    text = shown(application)[2]
+    assert text != "DON'T PLAY"
+    assert text in ("ANTE NOW", "SKIP ROUND")
+
+
+def test_the_banner_is_drawn_before_the_voice_is_asked_to_say_anything(application, monkeypatch):
+    """_publish_decision's own ordering, proven rather than just read: the
+    banner already shows the new decision by the time announce() is called,
+    so a slow or blocked voice can never hold the visual decision back.
+    """
+    seen_banner_text_at_announce_time = []
+
+    def spy_announce(phrase, **kwargs):
+        seen_banner_text_at_announce_time.append(application.decision_banner.text)
+        return True
+
+    monkeypatch.setattr(application.announcer, "announce", spy_announce)
+    begin(application)
+    deliver(application, se.PLAY)
+    assert seen_banner_text_at_announce_time == ["PLAY NOW"]
+
+
 def test_an_old_sessions_round_id_cannot_show_a_banner_after_stop(application):
     begin(application)
     deliver(application, se.PLAY, round_id=41)

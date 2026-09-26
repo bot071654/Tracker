@@ -578,16 +578,17 @@ def test_decisions_keep_being_announced_after_a_bad_event(application, engine):
     application.start()
     application.tracker._fake = True
 
-    application.events.put(("update", full_payload(se.WAIT)))
+    # Cards on the table throughout, not an empty one: the ANTE alert now
+    # fires on the very first empty poll it sees (see AnteAlertLogic and
+    # ui/ante_alert.py), and firing it would legitimately take the banner
+    # over - a different decision arriving, not the bug under test.
+    dealt = {"player_1": "AS", "player_2": "7D",
+             "flop_1": "KC", "flop_2": "7C", "flop_3": "2H"}
+    application.events.put(("update", full_payload(se.WAIT, cards=dealt)))
     application._poll_events()
     application.root.update()
     assert decisions_said(application, engine) == ["Wait"]
 
-    # With cards on the table: an empty table for three polls running makes
-    # the ANTE alert fire, which legitimately takes the banner over and would
-    # be a different decision arriving, not the bug under test.
-    dealt = {"player_1": "AS", "player_2": "7D",
-             "flop_1": "KC", "flop_2": "7C", "flop_3": "2H"}
     application.events.put(("update", {"nonsense": True}))
     application.events.put(("update", full_payload(se.PLAY, cards=dealt)))
     application.events.put(("update", full_payload(se.DONT_PLAY, round_id=2,

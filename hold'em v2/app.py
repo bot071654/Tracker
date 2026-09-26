@@ -189,7 +189,13 @@ class App:
         self.decision_banner = None
         if self.config.get("ante_alert", True):
             self.ante_alert = AnteAlertLogic(
-                empty_polls=int(self.config.get("ante_alert_empty_polls", 3)),
+                # 1, not 3: state WAITING (see AnteAlertLogic.observe) is
+                # already the debounced signal - CardMemory only reports the
+                # player's seat empty after clear_frames consecutive confirmed
+                # empty reads. Re-confirming that for several more polls here
+                # was pure added latency: real sessions measured 0.5-1.8s of
+                # it on top of an already-settled WAITING state.
+                empty_polls=int(self.config.get("ante_alert_empty_polls", 1)),
                 timeout=float(self.config.get("ante_alert_seconds", 25)))
             # ONE banner for every decision. AnteAlertBanner is DecisionBanner
             # under its old name, so this is a single widget in a single
@@ -1174,7 +1180,16 @@ class App:
             self.card_vars[slot].set(
                 card_cell(cards.get(slot), statuses.get(slot), slot in held))
 
-        status = "RUNNING - %s" % payload["state"]
+        # A cold start reads the same as WAITING - no cards, nothing to show -
+        # but it is not: no real hand has been seen yet this session, so there
+        # is no previous round for the pre-round rules to be about either.
+        # Said here, in the state that already updates every poll, rather
+        # than inventing a new banner decision for it.
+        if (payload["state"] == "WAITING" and self.ante_alert is not None
+                and not self.ante_alert.seen_a_hand):
+            status = "RUNNING - WAITING FOR FIRST ROUND"
+        else:
+            status = "RUNNING - %s" % payload["state"]
         if held:
             status += " (%d covered)" % len(held)
         self.set_status(status)
