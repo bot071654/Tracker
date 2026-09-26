@@ -181,6 +181,89 @@ def test_another_real_chrome_tab_also_pauses():
     assert gate.observe() == wf.GAME_INACTIVE
 
 
+# -- the real bug: the tracker's own window holding the foreground longer
+# than one poll, because the game was already open before it was started ----
+#
+# test_the_startup_order_regression_settles_active_without_a_click (above)
+# only covers a steal lasting exactly one poll - the two-in-a-row debounce
+# was already enough for that. The reported bug is the ordinary case: Start
+# Tracker is a click, the window it is clicked in genuinely holds the
+# foreground until the person's attention (and the foreground window) moves
+# back to the game, and that can easily take longer than one 0.2s poll. The
+# fix is FocusGate's own-window grace period, not the older two-poll one.
+
+def fake_clock(*ticks):
+    """A clock that returns each value in turn, then repeats the last one."""
+    values = list(ticks)
+
+    def read():
+        return values[0] if len(values) == 1 else values.pop(0)
+    return read
+
+
+def test_the_tracker_window_can_hold_the_foreground_for_several_polls():
+    """Game first, tracker second: several polls before the click back."""
+    gate = wf.FocusGate(POKER_REAL, read_title=titles(
+        "Poker Hand Tracker", "Poker Hand Tracker", "Poker Hand Tracker",
+        "Poker Hand Tracker", "Poker Hand Tracker", POKER_REAL))
+    for _ in range(5):
+        gate.observe()
+        assert gate.paused is False, "paused on the tracker's own window"
+    gate.observe()                              # the click back to the game
+    assert gate.state == wf.GAME_ACTIVE
+    assert gate.paused is False
+
+
+def test_the_grace_period_expires_if_the_game_is_never_returned_to():
+    """The own-window allowance is not permission to ignore it forever.
+
+    If the tracker's own window is still in front once the grace period has
+    passed, that is exactly what leaving the game to do something else looks
+    like - own window or not - and it must still pause.
+    """
+    clock = fake_clock(0.0, 0.0, 10.0, 10.2, 10.4)
+    gate = wf.FocusGate(
+        POKER_REAL, read_title=titles("Poker Hand Tracker"), clock=clock,
+        grace_seconds=3.0)
+    gate.observe()                              # t=0.0: within the grace period
+    assert gate.paused is False
+    gate.observe()                              # t=10.0: grace period long over
+    assert gate.observe() == wf.GAME_INACTIVE   # t=10.4: second real non-match
+
+
+def test_a_genuinely_different_application_still_pauses_within_the_grace_period():
+    """The grace period is specific to the tracker's own window, not a
+    blanket pass on every non-match for the first few seconds.
+    """
+    gate = wf.FocusGate(
+        POKER_REAL, read_title=titles(POKER_REAL, CHATGPT_REAL, CHATGPT_REAL),
+        grace_seconds=30.0)
+    gate.observe()
+    gate.observe()
+    assert gate.observe() == wf.GAME_INACTIVE
+
+
+def test_tracker_started_before_the_game_still_settles_paused():
+    """Tracker first, game later: the own-window grace period must not make
+    a tracker that has never seen the game claim it is active.
+    """
+    clock = fake_clock(100.0, 100.2, 100.4)
+    gate = wf.FocusGate(
+        POKER_REAL, read_title=titles(OTHER_TAB_REAL, OTHER_TAB_REAL), clock=clock)
+    gate.observe()
+    assert gate.observe() == wf.GAME_INACTIVE
+    assert gate.paused is True
+
+
+def test_the_game_is_recognised_the_instant_it_is_returned_to_during_the_grace_period():
+    gate = wf.FocusGate(POKER_REAL, read_title=titles(
+        "Poker Hand Tracker", POKER_REAL, "Poker Hand Tracker"))
+    gate.observe()
+    assert gate.observe() == wf.GAME_ACTIVE
+    gate.observe()                              # back to the tracker's own window
+    assert gate.paused is False, "one more look at our own window must not pause"
+
+
 # -- the gate in the tracker's loop -------------------------------------------
 
 @pytest.fixture

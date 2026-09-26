@@ -35,12 +35,23 @@ always has.
 import ctypes
 import logging
 import os
+import time
 
 logger = logging.getLogger(__name__)
 
 # The two states. Named rather than boolean so a log line says which.
 GAME_ACTIVE = "GAME_ACTIVE"
 GAME_INACTIVE = "GAME_INACTIVE"
+
+# app.py's root.title(...) - kept here, not re-typed there, so the one place
+# that has to recognise this title and the one place that sets it cannot
+# drift apart. See FocusGate's own-window grace period below.
+APP_WINDOW_TITLE = "Poker Hand Tracker"
+
+# How long after a FocusGate is created its own window is allowed to be the
+# foreground one without that being read as "the person left the game" - see
+# the docstring on FocusGate.look().
+STARTUP_GRACE_SECONDS = 3.0
 
 
 def _user32():
@@ -85,9 +96,15 @@ class FocusGate:
     behaved before this existed.
     """
 
-    def __init__(self, target, read_title=foreground_title):
+    def __init__(self, target, read_title=foreground_title,
+                own_title=APP_WINDOW_TITLE, grace_seconds=STARTUP_GRACE_SECONDS,
+                clock=time.time):
         self.target = (target or "").strip()
         self._read_title = read_title
+        self._own_title = (own_title or "").strip()
+        self._grace_seconds = float(grace_seconds)
+        self._clock = clock
+        self._created_at = clock()
         # Optimistic: until a look says otherwise the tracker runs. A gate
         # that starts paused would stall a tracker on a machine that cannot
         # answer the question at all.
@@ -109,7 +126,21 @@ class FocusGate:
         return self.state == GAME_INACTIVE
 
     def look(self):
-        """The state the world is in right now, without recording it."""
+        """The state the world is in right now, without recording it.
+
+        None is a third answer, distinct from both states: inconclusive,
+        because this poll's foreground window was the tracker's OWN, and
+        within the grace period from when this gate was created (a fresh one
+        every time Start Tracker is pressed - see Tracker.__init__). Pressing
+        that button, or the window it opens, legitimately holds the
+        foreground for a moment before the person's attention (and the
+        window in front) returns to the game - that is not the same claim as
+        "the person switched to something else", and observe() must not act
+        on it as though it were. Once the grace period has elapsed, the
+        tracker's own window is judged exactly like any other: still in
+        front of the game after several seconds is exactly what leaving the
+        game to look at something else looks like, own window or not.
+        """
         if not self.enabled:
             return GAME_ACTIVE
         title = self._read_title()
@@ -117,8 +148,12 @@ class FocusGate:
         if title is None:
             # This platform cannot say. Not a reason to stop tracking.
             return GAME_ACTIVE
-        return (GAME_ACTIVE if self.target.lower() in title.lower()
-                else GAME_INACTIVE)
+        if self.target.lower() in title.lower():
+            return GAME_ACTIVE
+        if (self._own_title and self._own_title.lower() in title.lower()
+                and self._clock() - self._created_at < self._grace_seconds):
+            return None
+        return GAME_INACTIVE
 
     def observe(self):
         """Fold one look in. The transition, or None when nothing changed.
@@ -127,18 +162,22 @@ class FocusGate:
         is active" when nothing is being watched would put a claim on screen
         about a check that is not happening.
 
-        A single non-matching look does not commit the state to
-        GAME_INACTIVE - it takes two of them in a row. This exists for one
-        reason: creating the tracker's own Tk window is enough, on its own,
-        with none of this application's own code involved, for Windows to
-        report that brand-new window as the foreground one for an instant.
-        Started with the poker game already active, the very first real look
-        can therefore see the tracker itself rather than the game, and
-        without this, that single transient reading would be reported and
-        acted on - the banner taken down, recognition paused - before the
-        person had done anything at all. A second consecutive non-match is a
-        different claim: nothing this application did explains that one, so
-        it is honoured immediately, same as it always was.
+        look() returning None - the startup grace period, our own window -
+        is folded in as a complete no-op: neither state nor the debounce
+        streak moves. It is not a look that says "still active" (state may
+        already be paused, from before this gate existed, and this poll must
+        not un-pause it) and not one that says "gone inactive" either; it is
+        simply not a look that answers the question at all, so nothing here
+        is updated on the strength of it.
+
+        A single non-matching real look does not commit the state to
+        GAME_INACTIVE - it takes two of them in a row. This is a second,
+        narrower safety net behind the grace period above: even a look this
+        application cannot explain at all - own window or not - is given one
+        poll's benefit of the doubt before it is acted on, so a one-poll
+        fluke never takes the banner down or pauses recognition on its own.
+        A second consecutive non-match is a different claim, and is honoured
+        immediately.
 
         Recovering the other way is never delayed. A matching look is
         accepted the instant it is seen, whether that is the first look ever
@@ -151,6 +190,8 @@ class FocusGate:
             self.state = GAME_ACTIVE
             return None
         raw = self.look()
+        if raw is None:
+            return None
         if raw == GAME_ACTIVE:
             self._inactive_streak = 0
             self.state = GAME_ACTIVE

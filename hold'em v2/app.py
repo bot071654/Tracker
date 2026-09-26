@@ -167,7 +167,7 @@ class App:
         self._layout = None           # the arrangement currently on screen
         self._laid_out_for = None     # the width that arrangement was chosen for
 
-        root.title("Poker Hand Tracker")
+        root.title(window_focus.APP_WINDOW_TITLE)
         # Sized and placed for this screen once the content exists, below. The
         # window is resizable now: a fixed size was what made a small laptop
         # unusable, with no way out but editing the source.
