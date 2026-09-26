@@ -42,6 +42,32 @@
                 "condition": "one of my two cards is A, K or Q",
                 "action": "play",
                 "name": "If the hand is High Card and one of my two cards is A, K or Q, play on"
+            },
+            {
+                "hand": "Pair",
+                "condition": "no draw",
+                "action": "fold",
+                "name": "If Pair with no draw, fold",
+                "taught": {
+                    "session": 2,
+                    "round_id": 4,
+                    "captured_at": "2026-09-26T10:48:34",
+                    "stage": "COMPLETE",
+                    "player_cards": [
+                        "3S",
+                        "KH"
+                    ],
+                    "flop_cards": [
+                        "2H",
+                        "4S",
+                        "KC"
+                    ],
+                    "hand": "Pair",
+                    "original_decision": "play",
+                    "original_engine_decision": "PLAY",
+                    "corrected_decision": "fold",
+                    "matched_rule": null
+                }
             }
         ]
     }
