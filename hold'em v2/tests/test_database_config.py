@@ -112,6 +112,73 @@ def test_surrounding_whitespace_is_trimmed(clean_env):
     assert db.connection_settings()["host"] == "db.example"
 
 
+# -- SSL mode: optional, and invisible when unset -----------------------------
+#
+# The local Docker container has never needed sslmode, so the whole point is
+# that not setting POSTGRES_SSLMODE must be indistinguishable from before this
+# existed - test_settings_are_read_from_the_environment above already proves
+# that (its exact five-key dict has no room for a sixth key appearing by
+# accident); these tests are about what happens once it IS set.
+
+def test_no_sslmode_means_no_sslmode_key_at_all(clean_env):
+    """Not merely "falsy" - the key must be genuinely absent.
+
+    psycopg receives connection_settings() unpacked as **kwargs (see
+    get_connection()), so an sslmode key present with any value, even one
+    meant to mean "off", would still ask psycopg to negotiate SSL. Absence is
+    the only way to reproduce today's local-Docker connection exactly.
+    """
+    configured(clean_env)
+    assert "sslmode" not in db.connection_settings()
+
+
+@pytest.mark.parametrize("mode", list(db.SSL_MODES))
+def test_every_recognised_sslmode_is_passed_through(clean_env, mode):
+    configured(clean_env, POSTGRES_SSLMODE=mode)
+    assert db.connection_settings()["sslmode"] == mode
+
+
+def test_sslmode_disable_for_local_docker():
+    assert "disable" in db.SSL_MODES
+
+
+def test_sslmode_require_for_a_cloud_server():
+    assert "require" in db.SSL_MODES
+
+
+def test_sslmode_is_trimmed_and_lowercased(clean_env):
+    configured(clean_env, POSTGRES_SSLMODE="  REQUIRE  ")
+    assert db.connection_settings()["sslmode"] == "require"
+
+
+def test_an_unrecognised_sslmode_is_a_named_configuration_error(clean_env):
+    configured(clean_env, POSTGRES_SSLMODE="yes-please")
+    with pytest.raises(db.ConfigurationError) as caught:
+        db.connection_settings()
+    message = str(caught.value)
+    assert "yes-please" in message
+    assert "require" in message                # one of the valid options is named
+
+
+def test_sslmode_does_not_disturb_the_other_settings(clean_env):
+    configured(clean_env, POSTGRES_SSLMODE="require")
+    settings = db.connection_settings()
+    assert settings["host"] == "db.example"
+    assert settings["port"] == 5433
+    assert settings["dbname"] == "poker_tracker"
+    assert settings["user"] == "poker_tracker"
+    assert settings["password"] == "secret"
+    assert settings["sslmode"] == "require"
+
+
+def test_an_sslmode_configuration_error_does_not_expose_the_password(clean_env):
+    configured(clean_env, POSTGRES_SSLMODE="yes-please",
+               POSTGRES_PASSWORD="hunter2-very-secret")
+    with pytest.raises(db.ConfigurationError) as caught:
+        db.connection_settings()
+    assert "hunter2" not in str(caught.value)
+
+
 # -- the password never appears in what we print ------------------------------
 
 def test_describe_target_never_includes_the_password(clean_env):
@@ -129,6 +196,14 @@ def test_a_connection_failure_names_the_target_but_not_the_password(clean_env):
     message = str(caught.value)
     assert "127.0.0.1:1" in message
     assert "hunter2" not in message
+
+
+def test_a_connection_failure_with_sslmode_set_still_hides_the_password(clean_env):
+    configured(clean_env, POSTGRES_HOST="127.0.0.1", POSTGRES_PORT="1",
+               POSTGRES_PASSWORD="hunter2-very-secret", POSTGRES_SSLMODE="require")
+    with pytest.raises(db.DatabaseError) as caught:
+        db.get_connection()
+    assert "hunter2" not in str(caught.value)
 
 
 # -- importing a history needs recorded_at to be writable ---------------------

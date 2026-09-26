@@ -77,6 +77,15 @@ REQUIRED_SETTINGS = ("POSTGRES_HOST", "POSTGRES_PORT",
 # connection to a different server or account.
 DEFAULT_DATABASE = "poker_tracker"
 
+# libpq's own sslmode values - see
+# https://www.postgresql.org/docs/current/libpq-ssl.html#LIBPQ-SSL-SSLMODE-STATEMENTS
+# Optional, unlike REQUIRED_SETTINGS above: the local Docker container has
+# never needed one, and unset means exactly that - no sslmode is passed to
+# psycopg at all, so a connection that has never negotiated SSL keeps not
+# doing so. Set POSTGRES_SSLMODE=require (or verify-full, with a CA) for a
+# server that needs it.
+SSL_MODES = ("disable", "allow", "prefer", "require", "verify-ca", "verify-full")
+
 
 def connection_settings():
     """Connection settings from the environment (.env is loaded if present).
@@ -103,13 +112,23 @@ def connection_settings():
         raise ConfigurationError(
             "POSTGRES_PORT must be a number, not %r" % port) from None
 
-    return {
+    settings = {
         "host": os.getenv("POSTGRES_HOST").strip(),
         "port": port,
         "dbname": (os.getenv("POSTGRES_DATABASE") or DEFAULT_DATABASE).strip(),
         "user": os.getenv("POSTGRES_USER").strip(),
         "password": os.getenv("POSTGRES_PASSWORD"),
     }
+
+    sslmode = (os.getenv("POSTGRES_SSLMODE") or "").strip().lower()
+    if sslmode:
+        if sslmode not in SSL_MODES:
+            raise ConfigurationError(
+                "POSTGRES_SSLMODE=%r is not a PostgreSQL SSL mode. Use one of: "
+                "%s." % (sslmode, ", ".join(SSL_MODES)))
+        settings["sslmode"] = sslmode
+
+    return settings
 
 
 def describe_target(settings=None):
