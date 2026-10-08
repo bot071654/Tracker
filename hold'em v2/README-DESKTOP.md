@@ -5,8 +5,8 @@ and records each completed round to the team's shared database **through a secur
 controls anything, and it never sends a screenshot anywhere.
 
 > **Release status (version 1.0.0).**
-> * **Windows x64: ready.** The release code is verified (BUILD-DESKTOP.md lists the checks). The final installer is rebuilt from the
->   release commit and re-verified before distribution; an installer built earlier from an uncommitted working tree is not the release.
+> * **Windows x64 1.0.0 release is ready.** The final installer was built from the clean commit `a89f561` (build 202610081033) and
+>   passes the checks listed in BUILD-DESKTOP.md. **The installer is unsigned**, so Windows SmartScreen will warn (see the install steps).
 > * **Clean Windows machine validation: pending.** No clean VM or spare PC was available; the checks so far ran on the development
 >   machine, which has Python. Run `desktop/build/clean_machine_check.ps1` on a clean Windows machine to complete it.
 > * **macOS Apple Silicon: BLOCKED — no Mac build environment. macOS Intel: BLOCKED — no Mac build environment.** Nothing has been
@@ -18,7 +18,7 @@ controls anything, and it never sends a screenshot anywhere.
 
 | System | Status |
 | --- | --- |
-| Windows 10 / 11, 64-bit (x64) | **1.0.0 ready** (final installer to be rebuilt from the release commit); clean-Windows-machine validation pending |
+| Windows 10 / 11, 64-bit (x64) | **1.0.0 ready** (build 202610081033, commit a89f561; installer unsigned); clean-Windows-machine validation pending |
 | macOS 11 or later, Apple Silicon (M1/M2/M3…) | **BLOCKED — no Mac build environment** (planned: `PokerHandTracker-AppleSilicon.dmg`; not built, not tested) |
 | macOS 11 or later, Intel | **BLOCKED — no Mac build environment** (planned: `PokerHandTracker-Intel.dmg`; not built, not tested) |
 

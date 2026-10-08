@@ -9,7 +9,7 @@ This file is for developers. Users read [README-DESKTOP.md](README-DESKTOP.md).
 
 | Platform | Status |
 | --- | --- |
-| Windows x64 | **Ready.** Release code verified (see the table and the release verification below). The **final installer is rebuilt from the release commit and re-verified**: the installer built on 2026-10-08 came from a working tree that included `tracker.py` and `core/`, which are not in the release commit, so it is **not** the release artifact. |
+| Windows x64 | **1.0.0 release is ready.** Final installer built from the clean commit `a89f561` (build `202610081033`) in a clean worktree and verified - see [Windows 1.0.0 release verification](#windows-100-release-verification). **The installer is unsigned** (SmartScreen will warn). |
 | Clean Windows machine validation | **Pending.** No clean VM or PC was available; the checks so far ran on the development machine. |
 | macOS Apple Silicon | **BLOCKED - no Mac build environment.** |
 | macOS Intel | **BLOCKED - no Mac build environment.** |
@@ -20,12 +20,12 @@ Details:
 | --- | --- |
 | Python test suite (original 55 files) with the packaging changes | Passing |
 | New tests: paths, API client, sign-in, import audit, backend (accounts, hands, migrations, migrate-on-start), desktop-to-backend end to end | Passing against a real PostgreSQL 18 (throwaway cluster) and the real API process |
-| **Windows build** (PyInstaller 6.22.3, Python 3.14.6 x64) and **`PokerHandTracker-Setup.exe`** (Inno Setup 6.7.3) | **Built.** The bundle is verified by running the packaged `.exe --selftest` (all checks, including recognition identical to the source baseline) |
-| Installed program on the *development* machine (install, self-test, first-run data folders, sign-in, restart, GUI start/close, no development Python loaded, uninstall, reinstall) | **45 of 45 checks pass** on the final installer, against a throwaway local backend (the same harness passed 44 of 44 against production earlier). A development-machine proxy, **not** the clean-machine test |
+| **Windows build** (PyInstaller 6.22.3, Python 3.14.6 x64) and **`PokerHandTracker-Setup.exe`** (Inno Setup 6.7.3), commit `a89f561`, build `202610081033` | **Built from a clean worktree** (committed `tracker.py`, no `core/`). 112 build tests pass; the bundle is verified by running the packaged `.exe --selftest` (10 of 10 checks, including recognition identical to the source baseline) |
+| Installed program on the *development* machine (install, self-test, first-run data folders, sign-in, restart, GUI start/close, no development Python loaded, uninstall, reinstall) | **45 of 45 checks pass** on the final installer, against a throwaway local backend. A development-machine proxy, **not** the clean-machine test |
 | **Windows clean-machine test** | **PENDING (not done):** no clean VM or spare PC was available, and this machine has Python. `clean_machine_check.ps1` automates the whole test for whoever has one |
 | **macOS Apple Silicon / Intel** | **BLOCKED - no Mac build environment; NOT BUILT, NOT TESTED:** `build_macos.sh` has never run |
 | **Railway** | **Deployed** (`holdem-api`), migrated, and exercised from the packaged desktop app over HTTPS |
-| Windows release folder (installer, checksum, user guide) | **Assembled and verified** - see [Windows 1.0.0 release verification](#windows-100-release-verification) |
+| Windows release folder (installer, checksum, user guide) | **Assembled and verified** from the clean-commit installer: exactly three files in `desktop\build\release\PokerHandTracker-1.0.0-windows-x64\` |
 | Code signing, macOS notarization | Not done: need the owner's certificates. The Windows installer is `NotSigned` (SmartScreen will warn) |
 
 Nothing in this list is claimed to work until the corresponding row says it was run.
@@ -217,10 +217,13 @@ when a developer's local `.env` sets `POSTGRES_SSLMODE` (the `.env` leaks into t
 
 ## Windows 1.0.0 release verification
 
-Run on 2026-10-08 on **build `202610080800`, which is superseded** and not the release artifact (`desktop\build\dist\PokerHandTracker-Setup.exe`, 52,144,730 bytes, SHA-256
-`DCC8551F7CC73BC827446D5470BE3895A41F704C9F07143DF7B1DA5060D583E8`, build `202610080800`, commit `93fa279+dirty`: the tree had uncommitted
-work, including the working-tree `tracker.py` and `core/` modules, so **commit before the next release build** and the record will name an exact commit). Assemble the distribution folder with
-`desktop\build\make_release_folder.ps1`.
+Run on 2026-10-08 on the **final installer**, built from the clean commit `a89f561` in a clean git worktree (the committed `tracker.py`, no
+`core/`, no uncommitted changes): `PokerHandTracker-Setup.exe`, 52,217,776 bytes, build `202610081033`, SHA-256
+`011ACBE7A2078E45C46133878B5D26A097878A04DAED458D614621CABA1E762D`. Assemble the distribution folder with
+`desktop\build\make_release_folder.ps1` (run from the worktree that built the installer).
+
+An earlier installer, build `202610080800` (SHA-256 `DCC8551F...83E8`), was built from a working tree that also contained the uncommitted
+`tracker.py` and `core/`. It is **superseded and is not a release artifact**; do not distribute it.
 
 | Check | Result |
 | --- | --- |
@@ -233,8 +236,10 @@ work, including the working-tree `tracker.py` and `core/` modules, so **commit b
 | Data location: first run creates only `%LOCALAPPDATA%\PokerHandTracker\{config,data,logs,debug,state,cache,recognition}`; nothing is written to the install folder or the working directory | Pass |
 | Logs: the report and `tracker.log` of a real sign-in contain neither the password nor the session token; the stored session is DPAPI-encrypted | Pass |
 | Installer/uninstaller: per-user (no admin), Start Menu entry, optional desktop shortcut (off by default), Settings > Apps entry `Poker Hand Tracker 1.0.0`, silent uninstall keeps the data, reinstall keeps settings and sign-in, final uninstall leaves no program folder, shortcut or registry entry | Pass |
-| Version: `1.0.0 (build 202610080800)` in the installer, the uninstall entry, `--version`, `--diagnostics`, the log and the F1 window | Pass |
-| Reproducibility: rebuilt the bundle from the same inputs - 1,194 of 1,196 files byte-identical; the other two (`PokerHandTracker.exe`, `_internal\base_library.zip`) differ only in container metadata (the zip's entries are identical). With `SOURCE_DATE_EPOCH` set, the exe is byte-identical between builds; `base_library.zip` still differs. **Recompiling the installer from the same bundle is byte-identical** (same SHA-256) | Pass, with that exception |
+| Version: `1.0.0 (build 202610081033, commit a89f561)` in the installer, the uninstall entry, `--version`, `--diagnostics`, the log and the F1 window | Pass |
+| Reproducibility: **recompiling the installer from the final bundle is byte-identical** (same SHA-256). For the bundle itself (measured on the earlier build `202610080800` with the same toolchain; not repeated for the final build): a rebuild from the same inputs gave 1,194 of 1,196 files byte-identical; the other two (`PokerHandTracker.exe`, `_internal\base_library.zip`) differ only in container metadata (the zip's entries are identical). With `SOURCE_DATE_EPOCH` set, the exe is byte-identical between builds; `base_library.zip` still differs | Pass, with that exception |
+| Build provenance: the bundle contains the committed `tracker.py` and **no** `core.*` module; the build tree was clean (`commit a89f561`, no `+dirty`) | Pass |
+| Build tests (desktop paths, API client, sign-in, card recognition) in the clean worktree: 112 passed. Packaged `--selftest`: 10 of 10. Install/uninstall/reinstall harness on the dev machine: 45 of 45 | Pass |
 
 Known and accepted for 1.0.0: `PokerHandTracker.exe` carries no Windows version resource (Explorer > Properties > Details is empty; the
 installer and the app itself show the version); the installer is unsigned; no clean-machine run was possible (below).
