@@ -222,6 +222,10 @@ Run on 2026-10-08 on the **final installer**, built from the clean commit `a89f5
 `011ACBE7A2078E45C46133878B5D26A097878A04DAED458D614621CABA1E762D`. Assemble the distribution folder with
 `desktop\build\make_release_folder.ps1` (run from the worktree that built the installer).
 
+**Git provenance.** The installer was built from the original local commit `a89f561`, which is not on the publishable branch. The identical
+release changes were cherry-picked onto the publishable release branch `release/windows-1.0.0` as `ee60575` (same 55 files, same content);
+`ee60575` did not produce the installer. The installer SHA-256 is unchanged: `011ACBE7A2078E45C46133878B5D26A097878A04DAED458D614621CABA1E762D`.
+
 An earlier installer, build `202610080800` (SHA-256 `DCC8551F...83E8`), was built from a working tree that also contained the uncommitted
 `tracker.py` and `core/`. It is **superseded and is not a release artifact**; do not distribute it.
 
