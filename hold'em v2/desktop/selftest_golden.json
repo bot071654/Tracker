@@ -1,0 +1,92 @@
+{
+  "10C_1.png": {
+    "card": "10C",
+    "confidence": 0.654,
+    "confident": true,
+    "rank": "10",
+    "rank_margin": 0.273,
+    "suit": "C",
+    "suit_margin": 0.0869
+  },
+  "10C_2.png": {
+    "card": "10C",
+    "confidence": 0.8792,
+    "confident": false,
+    "rank": "10",
+    "rank_margin": 0.4197,
+    "suit": "C",
+    "suit_margin": 0.0254
+  },
+  "10C_3.png": {
+    "card": "10C",
+    "confidence": 0.6504,
+    "confident": true,
+    "rank": "10",
+    "rank_margin": 0.1761,
+    "suit": "C",
+    "suit_margin": 0.1002
+  },
+  "5C_1.png": {
+    "card": "5C",
+    "confidence": 0.7605,
+    "confident": false,
+    "rank": "5",
+    "rank_margin": 0.0727,
+    "suit": "C",
+    "suit_margin": 0.0748
+  },
+  "5C_2.png": {
+    "card": "5C",
+    "confidence": 0.7652,
+    "confident": true,
+    "rank": "5",
+    "rank_margin": 0.102,
+    "suit": "C",
+    "suit_margin": 0.0769
+  },
+  "5S_1.png": {
+    "card": "5S",
+    "confidence": 0.8984,
+    "confident": true,
+    "rank": "5",
+    "rank_margin": 0.2828,
+    "suit": "S",
+    "suit_margin": 0.0858
+  },
+  "5S_2.png": {
+    "card": "5S",
+    "confidence": 0.9048,
+    "confident": true,
+    "rank": "5",
+    "rank_margin": 0.2937,
+    "suit": "S",
+    "suit_margin": 0.0861
+  },
+  "9S_1.png": {
+    "card": "9S",
+    "confidence": 0.8088,
+    "confident": false,
+    "rank": "9",
+    "rank_margin": 0.0519,
+    "suit": "S",
+    "suit_margin": 0.078
+  },
+  "QC_1.png": {
+    "card": "QC",
+    "confidence": 0.9021,
+    "confident": true,
+    "rank": "Q",
+    "rank_margin": 0.3501,
+    "suit": "C",
+    "suit_margin": 0.0525
+  },
+  "QC_2.png": {
+    "card": "QC",
+    "confidence": 0.9112,
+    "confident": true,
+    "rank": "Q",
+    "rank_margin": 0.3616,
+    "suit": "C",
+    "suit_margin": 0.0534
+  }
+}

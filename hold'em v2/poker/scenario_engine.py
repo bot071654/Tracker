@@ -91,8 +91,10 @@ from poker.hand_evaluator import (
 
 logger = logging.getLogger(__name__)
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ENGINE_CONFIG_PATH = os.path.join(ROOT, "config", "scenario_engine.json")
+from desktop import paths as _paths
+
+ROOT = _paths.app_home()          # the project folder from source; a per-user folder when packaged
+ENGINE_CONFIG_PATH = os.path.join(_paths.config_dir(), "scenario_engine.json")
 
 # There is deliberately no way to turn this off.
 DRY_RUN = True

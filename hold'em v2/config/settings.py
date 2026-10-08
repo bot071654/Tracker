@@ -9,11 +9,20 @@ import logging
 import os
 from logging.handlers import RotatingFileHandler
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONFIG_PATH = os.path.join(ROOT, "config", "config.json")
-LOG_PATH = os.path.join(ROOT, "logs", "tracker.log")
-TEMPLATE_DIR = os.path.join(ROOT, "recognition", "templates")
-EXCEL_PATH = os.path.join(ROOT, "data", "poker_hands.xlsx")
+from desktop import paths as _paths
+
+# ROOT is the WRITABLE root. From source it is the project folder, exactly as it always was; in the
+# packaged app it is a per-user folder (see desktop/paths.py), because nothing may be written beside
+# the executable. RESOURCE_ROOT is where the read-only bundled files live.
+ROOT = _paths.app_home()
+RESOURCE_ROOT = _paths.resource_root()
+CONFIG_PATH = os.path.join(_paths.config_dir(), "config.json")
+LOG_PATH = os.path.join(_paths.log_dir(), "tracker.log")
+TEMPLATE_DIR = _paths.template_dir()
+EXCEL_PATH = os.path.join(_paths.data_dir(), "poker_hands.xlsx")
+
+if os.path.abspath(ROOT) != os.path.abspath(RESOURCE_ROOT):
+    _paths.seed_user_files()        # packaged first run (or POKER_TRACKER_HOME): copy shipped defaults, never overwrite
 
 # The nine card slots, in the order the calibrator asks for them.
 CARD_SLOTS = [
@@ -169,3 +178,6 @@ def setup_logging(level=logging.INFO):
     console.setFormatter(fmt)
     root.addHandler(console)
     root._poker_tracker_configured = True
+
+    from desktop.logsetup import install_redaction
+    install_redaction(root)         # nothing that looks like a password or token reaches a log

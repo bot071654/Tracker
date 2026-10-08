@@ -1,0 +1,3 @@
+# These are written by the build into desktop/build/stage/ and must never exist in the source tree (see prepare_stage.py).
+build_info.json
+api_defaults.json

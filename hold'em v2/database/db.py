@@ -13,8 +13,15 @@ at a different server - see REQUIRED_SETTINGS.
 import logging
 import os
 
-import psycopg
-from dotenv import load_dotenv
+try:
+    import psycopg
+except ImportError:                 # the packaged desktop app ships no database driver at all (it uses the HTTPS API)
+    psycopg = None
+try:
+    from dotenv import load_dotenv
+except ImportError:                 # likewise: there is no .env in a packaged app
+    def load_dotenv(*_args, **_kwargs):
+        return False
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +65,24 @@ class ConfigurationError(DatabaseError):
     check, the tracker's retry, the tools - already handles it and reports it
     the way it reports any other database problem.
     """
+
+
+def _remote():
+    """The HTTPS backend facade when the app is configured to use it, else None (direct PostgreSQL).
+
+    The packaged app is always remote: it contains no database driver settings and no credentials. From
+    source with no backend address configured nothing changes - every function below talks to PostgreSQL
+    exactly as before. The backend server itself (POKER_TRACKER_BACKEND=1) is never remote.
+    """
+    from desktop import appconfig
+    try:
+        remote = appconfig.remote_mode()
+    except appconfig.ConfigError as exc:
+        raise ConfigurationError(str(exc)) from exc
+    if not remote:
+        return None
+    from desktop import backend
+    return backend.get()
 
 
 # Which server, which account. Every one of these must be set: there is
@@ -140,6 +165,9 @@ def describe_target(settings=None):
 
 def get_connection():
     """Open a connection. Raises DatabaseError if PostgreSQL is unreachable."""
+    if psycopg is None:
+        raise DatabaseError(
+            "This build has no direct database driver: it records hands through the backend over HTTPS.")
     settings = connection_settings()
     try:
         return psycopg.connect(connect_timeout=5, **settings)
@@ -174,6 +202,9 @@ def verify_schema():
     wrong (empty) database would otherwise have the schema built for them
     there, and would go on recording hands into it without ever being told.
     """
+    remote = _remote()
+    if remote is not None:
+        return remote.verify_schema()
     try:
         with get_connection() as conn, conn.cursor() as cur:
             cur.execute("SELECT to_regclass('public.poker_hands')")
@@ -189,6 +220,9 @@ def verify_schema():
 def check_connection():
     """(ok, message) - a cheap connectivity probe for the UI."""
     try:
+        remote = _remote()
+        if remote is not None:
+            return remote.check_connection()
         with get_connection() as conn, conn.cursor() as cur:
             cur.execute("SELECT 1")
         return True, "PostgreSQL connected"
@@ -224,6 +258,9 @@ def insert_hand(record):
     months ago, and stamping them all with the time of the import would throw
     away the one column that says when they were really played.
     """
+    remote = _remote()
+    if remote is not None:
+        return remote.insert_hand(record)
     row = record_to_row(record)
     columns = COLUMNS + ["hand_fingerprint"]
     if record.get("recorded_at") is not None:
@@ -261,6 +298,9 @@ def insert_hand(record):
 
 def fingerprint_exists(fingerprint):
     """True when this hand has already been stored."""
+    remote = _remote()
+    if remote is not None:
+        return remote.fingerprint_exists(fingerprint)
     try:
         with get_connection() as conn, conn.cursor() as cur:
             cur.execute(
@@ -276,6 +316,9 @@ def fingerprint_exists(fingerprint):
 def fetch_all_hands():
     """Every stored hand, oldest first, as a list of dicts."""
     columns = ["id", "recorded_at"] + COLUMNS + ["hand_fingerprint"]
+    remote = _remote()
+    if remote is not None:
+        return remote.fetch_all_hands()
     try:
         with get_connection() as conn, conn.cursor() as cur:
             cur.execute("SELECT %s FROM poker_hands ORDER BY id" % ", ".join(columns))
@@ -301,6 +344,9 @@ def win_statistics():
          "player_percent": f, "dealer_percent": f, "tie_percent": f}
     """
     counts = {"Player": 0, "Dealer": 0, "Tie": 0}
+    remote = _remote()
+    if remote is not None:
+        return remote.win_statistics()
     try:
         with get_connection() as conn, conn.cursor() as cur:
             cur.execute(

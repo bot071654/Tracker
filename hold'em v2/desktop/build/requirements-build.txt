@@ -1,0 +1,6 @@
+# Everything needed to BUILD the desktop app: the runtime set plus the packager.
+#
+# PyInstaller is the packager (see BUILD-DESKTOP.md for why, against Nuitka). 6.16 is the first release with Python 3.14
+# support. After the first successful build, pin the exact version you used here and commit it, so builds repeat.
+-r requirements-desktop.txt
+pyinstaller>=6.16,<7

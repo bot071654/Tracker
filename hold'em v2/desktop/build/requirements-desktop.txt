@@ -1,0 +1,24 @@
+# Runtime dependencies of the PACKAGED desktop app, pinned to the versions the recognition thresholds and the
+# test suite were tuned on (the project's .venv at the time of packaging).
+#
+# What is deliberately NOT here, because the desktop build must not contain it:
+#   psycopg / python-dotenv   no database driver and no .env: hands go to the backend over HTTPS
+#   pyautogui and friends     the app is read-only; nothing that can move a mouse or press a key is shipped
+#   fastapi / uvicorn / ...   backend-only (backend/requirements.txt)
+#   pillow / pytest           development tools only
+#
+# Platform markers: the Windows-only voice stack (SAPI5 through pyttsx3) is installed on Windows only.
+
+opencv-python==5.0.0.93
+numpy==2.5.3
+mss==10.2.0
+openpyxl==3.1.5
+pyttsx3==2.99
+
+comtypes==1.4.17; sys_platform == "win32"
+pywin32==312; sys_platform == "win32"
+
+# CA bundle for HTTPS, on EVERY platform. The Windows system store is not enough on its own: Python's view of it made a valid
+# certificate chain (Railway's wildcard certificate, issued by Let's Encrypt's 2026 "YE2" / "ISRG Root YE" hierarchy) fail with
+# "certificate has expired"; with certifi added the same chain verifies. macOS builds ship no CA bundle at all.
+certifi==2026.7.22

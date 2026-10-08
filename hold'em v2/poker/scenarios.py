@@ -23,8 +23,10 @@ from poker.scenario_engine import ACCEPTED_STATUSES
 
 logger = logging.getLogger(__name__)
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SCENARIOS_PATH = os.path.join(ROOT, "config", "scenarios.json")
+from desktop import paths as _paths
+
+ROOT = _paths.app_home()          # the project folder from source; a per-user folder when packaged
+SCENARIOS_PATH = os.path.join(_paths.config_dir(), "scenarios.json")
 
 ANY = "Any"
 HAND_CHOICES = [ANY] + [HAND_NAMES[key] for key in sorted(HAND_NAMES)]

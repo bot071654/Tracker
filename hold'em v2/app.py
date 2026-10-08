@@ -1874,7 +1874,12 @@ def main():
     # and found nothing yet to fix.
     root.update_idletasks()
     window_focus.restore_foreground_window(previous_foreground)
-    App(root)
+    # Packaged/desktop build: log the version banner and sign in to the backend if this build uses one. From
+    # source with no backend configured this only writes the banner to the log.
+    from desktop import bootstrap
+    bootstrap.startup(root)
+    app = App(root)
+    bootstrap.finish(app, root)
     root.mainloop()
 
 

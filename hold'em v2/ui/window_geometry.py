@@ -31,8 +31,10 @@ from collections import namedtuple
 
 logger = logging.getLogger(__name__)
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-STATE_PATH = os.path.join(ROOT, "config", "window_state.json")
+from desktop import paths as _paths
+
+ROOT = _paths.app_home()          # the project folder from source; a per-user folder when packaged
+STATE_PATH = os.path.join(_paths.state_dir(), "window_state.json")
 
 # The size the window asks for when the screen has room for all of it. This is
 # the old fixed size: on a large screen nothing about the window changes.

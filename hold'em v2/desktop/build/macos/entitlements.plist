@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Hardened-runtime entitlements for the PyInstaller bundle (required for notarization).
+
+  allow-unsigned-executable-memory / disable-library-validation: PyInstaller's bootloader loads the bundled Python and
+  the extension modules (OpenCV, NumPy) from inside the app; with the hardened runtime on, those two are what the
+  commonly documented PyInstaller + notarization recipe needs. UNTESTED HERE (no Mac was available): confirm on a Mac
+  that the notarized app starts, and remove an entitlement if the app runs without it.
+
+  Deliberately NOT requested: Accessibility / input monitoring / automation. The app only reads the screen. Screen
+  Recording is a user-granted privacy permission (System Settings > Privacy & Security), not an entitlement.
+-->
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+</dict>
+</plist>

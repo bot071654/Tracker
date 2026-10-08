@@ -1,0 +1,10 @@
+# Hold'em Tracker API - runtime dependencies (Python 3.12+)
+#
+# This backend has its OWN requirements.txt, separate from the desktop
+# app's, so installing it never touches the desktop app's environment.
+# It reuses database/db.py (project root) as-is - see backend/app/main.py -
+# so psycopg/python-dotenv must match what that module already needs.
+fastapi>=0.115
+uvicorn[standard]>=0.30
+psycopg[binary]>=3.1
+python-dotenv>=1.0

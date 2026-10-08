@@ -1,0 +1,8 @@
+# Build outputs and caches; never committed.
+.venv-*/
+dist/
+dist-*/
+work/
+work-*/
+stage/
+release/
