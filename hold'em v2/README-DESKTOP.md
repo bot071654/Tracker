@@ -4,9 +4,10 @@ A read-only tracker for a Casino Hold'em table on your own screen. It reads the 
 and records each completed round to the team's shared database **through a secure web service**. It never clicks, bets or
 controls anything, and it never sends a screenshot anywhere.
 
-> **Release status (version 1.0.0).**
-> * **Windows x64 1.0.0 release is ready.** The final installer was built from the clean commit `a89f561` (build 202610081033) and
->   passes the checks listed in BUILD-DESKTOP.md. **The installer is unsigned**, so Windows SmartScreen will warn (see the install steps).
+> **Release status (version 1.0.1; 1.0.0 is the published predecessor).**
+> * **Windows x64 1.0.1 maintenance release is ready for publication.** It was built from the clean commit `4e35992` (build 202610090631)
+>   and passes the checks listed in BUILD-DESKTOP.md. It fixes a crash of the `--backend-check` support switch (see
+>   desktop/docs/RELEASE-NOTES-1.0.1.md). **The installer is unsigned**, so Windows SmartScreen will warn (see the install steps).
 > * **Clean Windows machine validation: pending.** No clean VM or spare PC was available; the checks so far ran on the development
 >   machine, which has Python. Run `desktop/build/clean_machine_check.ps1` on a clean Windows machine to complete it.
 > * **macOS Apple Silicon: BLOCKED — no Mac build environment. macOS Intel: BLOCKED — no Mac build environment.** Nothing has been
@@ -18,7 +19,7 @@ controls anything, and it never sends a screenshot anywhere.
 
 | System | Status |
 | --- | --- |
-| Windows 10 / 11, 64-bit (x64) | **1.0.0 ready** (build 202610081033, commit a89f561; installer unsigned); clean-Windows-machine validation pending |
+| Windows 10 / 11, 64-bit (x64) | **1.0.1 ready for publication** (build 202610090631, commit 4e35992; installer unsigned; 1.0.0 is the published predecessor); clean-Windows-machine validation pending |
 | macOS 11 or later, Apple Silicon (M1/M2/M3…) | **BLOCKED — no Mac build environment** (planned: `PokerHandTracker-AppleSilicon.dmg`; not built, not tested) |
 | macOS 11 or later, Intel | **BLOCKED — no Mac build environment** (planned: `PokerHandTracker-Intel.dmg`; not built, not tested) |
 

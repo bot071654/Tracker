@@ -5,16 +5,17 @@ This file is for developers. Users read [README-DESKTOP.md](README-DESKTOP.md).
 
 ## Release status: what has and has not been verified
 
-**Summary for version 1.0.0**
+**Summary for version 1.0.1** (1.0.0 is the published predecessor; its record is below)
 
 | Platform | Status |
 | --- | --- |
-| Windows x64 | **1.0.0 release is ready.** Final installer built from the clean commit `a89f561` (build `202610081033`) in a clean worktree and verified - see [Windows 1.0.0 release verification](#windows-100-release-verification). **The installer is unsigned** (SmartScreen will warn). |
+| Windows x64 1.0.1 | **Maintenance release ready for publication** (build `202610090631`, commit `4e35992`; see [Windows 1.0.1 maintenance release](#windows-101-maintenance-release)). **The installer is unsigned** (SmartScreen will warn). |
+| Windows x64 1.0.0 | Published predecessor (tag `v1.0.0`; build `202610081033`, source commit `a89f561`; see [Windows 1.0.0 release verification](#windows-100-release-verification)). |
 | Clean Windows machine validation | **Pending.** No clean VM or PC was available; the checks so far ran on the development machine. |
 | macOS Apple Silicon | **BLOCKED - no Mac build environment.** |
 | macOS Intel | **BLOCKED - no Mac build environment.** |
 
-Details:
+Details (the build, installer and release-folder rows below record version 1.0.0; the 1.0.1 checks are in their own section further down):
 
 | Item | Status |
 | --- | --- |
@@ -247,6 +248,29 @@ An earlier installer, build `202610080800` (SHA-256 `DCC8551F...83E8`), was buil
 
 Known and accepted for 1.0.0: `PokerHandTracker.exe` carries no Windows version resource (Explorer > Properties > Details is empty; the
 installer and the app itself show the version); the installer is unsigned; no clean-machine run was possible (below).
+
+## Windows 1.0.1 maintenance release
+
+Fixes the `--backend-check` unhandled-exception dialog (release notes: `desktop/docs/RELEASE-NOTES-1.0.1.md`). Source commit
+`4e35992` on `release/windows-1.0.0` (the fix in `desktop/entry.py` and `desktop/selftest.py`, 19 regression tests in
+`tests/test_desktop_entry.py`, and `VERSION` 1.0.1 in `desktop/version.py`). The installer was built from that clean commit
+(no `+dirty`): `PokerHandTracker-Setup.exe`, 52,211,228 bytes, build `202610090631`, SHA-256
+`7105763841FBAB765A37F4534D023BB5F0A09BB5587C3BDEDA0207328E5B77D8`. The v1.0.0 tag, release and assets are unchanged.
+
+| Check | Result |
+| --- | --- |
+| Full test suite (62 files, two halves): 650 + 936 passed, 0 failed, 11 skipped (no display / empty `samples/` / foreground window) | Pass |
+| Build tests inside `build_windows.ps1`: 112 passed; bundle scan + packaged `--selftest` 10 of 10 (`VERIFIED`) | Pass |
+| Packaged exe, `POKER_TRACKER_API_URL=http://example.com` with `--backend-check`: exit 1 in under a second, no dialog, structured report naming the refusal, **0 network connections** (a local logging proxy sees every attempt), also for `http://api.example.com:8000` and `http://10.0.0.5` | Pass |
+| Packaged exe, valid `https` address accepted and the run reaches the network step (seen as a `CONNECT` at the local proxy only); an unexpected error inside a support switch exits 2 with no dialog | Pass |
+| `--version` (1.0.1), `--diagnostics` (bundled default = production HTTPS API), `--selftest` 10 of 10; sign-in, test hand, restart and sign-out against a **throwaway local backend**; GUI starts and closes cleanly signed in and signed out | Pass |
+| Install/uninstall/reinstall harness on the dev machine: 45 of 45 (Settings > Apps entry `1.0.1`) | Pass |
+| Upgrade: the published 1.0.0 installer installed, signed in (throwaway backend), then 1.0.1 installed over it: entry shows `1.0.1`, the stored sign-in and user settings survive, one installation and one uninstaller (9 of 9) | Pass |
+| Recompiling the installer from the bundle is byte-identical; no credentials in the bundle; bundle differs from 1.0.0 only in `PokerHandTracker.exe`, `base_library.zip`, `build_info.json` and numpy's `RECORD` | Pass |
+
+HTTPS enforcement, backend URL precedence and the bundled HTTPS default are unchanged (`desktop/appconfig.py` and `desktop/api_client.py`
+are not touched). **Not done:** a clean Windows machine/VM run (still pending), a complete TLS handshake test (HTTPS address handling was
+tested through a local proxy and a throwaway loopback backend, never against production), code signing, macOS.
 
 ## Clean-machine test (Windows)
 
