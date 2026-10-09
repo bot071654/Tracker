@@ -278,11 +278,20 @@ def backend_check(submit_test_hand=False, sign_out=False, out_path=None):
         ok = step("submit one test hand", lambda: _submit_test_hand())
     if sign_out:
         step("sign out", lambda: backend.sign_out() or "signed out")
-    report = {"ok": all(item["ok"] for item in steps), "version": version.as_dict(), "backend": appconfig.api_url(), "steps": steps}
+    report = {"ok": all(item["ok"] for item in steps), "version": version.as_dict(), "backend": _configured_backend(), "steps": steps}
     if out_path:
         with open(out_path, "w", encoding="utf-8") as handle:
             json.dump(report, handle, indent=2, default=str)
     return report
+
+
+def _configured_backend():
+    """The backend address for the report. An address the HTTPS rules refuse is reported here, not raised a second time: the
+    refusal is already a failed step, and the report must still be written."""
+    try:
+        return appconfig.api_url()
+    except appconfig.ConfigError as exc:
+        return "invalid: %s" % exc
 
 
 def _assert_remote_mode():

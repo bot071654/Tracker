@@ -11,7 +11,7 @@ import sys
 
 APP_NAME = "Poker Hand Tracker"
 APP_ID = "PokerHandTracker"          # folder / bundle name: no spaces
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 
