@@ -548,3 +548,88 @@ def test_the_source_label_does_not_change_what_is_read(frame, monkeypatch):
     cards, _ = tracker._read_table()
     assert tracker._layout_source == "none"
     assert all(card is None for card in cards.values())
+
+
+# -- a layout is not kept for ever --------------------------------------------
+
+def _web_page(frame):
+    """A bright page with text where the table was: no cards, but not felt."""
+    page = np.full_like(frame, 255)
+    cv2.putText(page, "NEXT GAME SOON", (500, 300),
+                cv2.FONT_HERSHEY_SIMPLEX, 2, (30, 30, 30), 4)
+    return page
+
+
+def _feed(tracker_module, tracker, monkeypatch, shown):
+    monkeypatch.setattr(tracker_module, "grab_full_screen", lambda monitor=1: shown)
+    monkeypatch.setattr(tracker_module, "monitor_origin", lambda monitor=1: (0, 0))
+    cards, reads = tracker._read_table()
+    return tracker.memory.update(cards, reads), reads
+
+
+def test_a_table_that_has_gone_is_not_read_through_the_old_layout(frame,
+                                                                  monkeypatch):
+    """Once the table has been missing longer than a hand takes to sweep
+    across, the last layout is dropped: reading a web page through it counted
+    every bright patch as a card, so memory never saw an empty table and the
+    last hand stayed on screen."""
+    import queue
+
+    import tracker as tracker_module
+
+    tracker = tracker_module.Tracker(
+        {"monitor": 1, "regions": dict(REGIONS), "clear_frames": 3}, queue.Queue())
+    shown, _ = _feed(tracker_module, tracker, monkeypatch, frame)
+    assert tracker._layout_source == "dynamic" and len(shown) == 9
+
+    page = _web_page(frame)
+    limit = tracker._layout_max_misses()
+    for _ in range(limit):
+        shown, _ = _feed(tracker_module, tracker, monkeypatch, page)
+        assert tracker._layout_source == "cached"      # a covered table still is
+    shown, reads = _feed(tracker_module, tracker, monkeypatch, page)
+    assert tracker._layout_source == "lost"
+    assert tracker._last_regions == {}
+    assert not any(read["present"] for read in reads.values())
+
+    for _ in range(tracker.memory.clear_frames):
+        shown, _ = _feed(tracker_module, tracker, monkeypatch, page)
+    assert shown == {}, "stale cards survived the table leaving"
+    # Calibrated boxes are not a fallback for a table that was found and lost.
+    assert tracker._layout_source == "lost"
+
+
+def test_a_lost_table_is_found_again_when_it_returns(frame, monkeypatch):
+    import queue
+
+    import tracker as tracker_module
+
+    tracker = tracker_module.Tracker({"monitor": 1}, queue.Queue())
+    _feed(tracker_module, tracker, monkeypatch, frame)
+    page = _web_page(frame)
+    for _ in range(tracker._layout_max_misses() + 2):
+        _feed(tracker_module, tracker, monkeypatch, page)
+    assert tracker._layout_source == "lost"
+    shown, _ = _feed(tracker_module, tracker, monkeypatch, frame)
+    assert tracker._layout_source == "dynamic"
+    assert shown == EXPECTED
+
+
+def test_pausing_makes_the_next_missed_table_drop_the_layout(frame, monkeypatch):
+    """Whatever the layout pointed at before the game left the front is not
+    known to be there when it comes back."""
+    import queue
+
+    import tracker as tracker_module
+
+    tracker = tracker_module.Tracker({"monitor": 1}, queue.Queue())
+    _feed(tracker_module, tracker, monkeypatch, frame)
+    tracker._expire_layout()
+    _feed(tracker_module, tracker, monkeypatch, _web_page(frame))
+    assert tracker._layout_source == "lost"
+    # Still fine when the table is there on return.
+    tracker2 = tracker_module.Tracker({"monitor": 1}, queue.Queue())
+    _feed(tracker_module, tracker2, monkeypatch, frame)
+    tracker2._expire_layout()
+    shown, _ = _feed(tracker_module, tracker2, monkeypatch, frame)
+    assert tracker2._layout_source == "dynamic" and shown == EXPECTED

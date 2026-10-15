@@ -645,6 +645,8 @@ class Tracker:
         # from until one works again.
         self._layout = None
         self._layout_source = None
+        self._layout_misses = 0        # polls in a row the table was not found
+        self._layout_lost = False      # a layout was found once, then dropped
         self._dealer_note = {}         # last rejection logged per dealer slot
         self._status_note = {}         # last ambiguity logged per slot
         # The pixels each slot showed last poll, and what they were read as.
@@ -736,6 +738,7 @@ class Tracker:
             if moved is not None:
                 self._emit("focus", moved)
             if self.focus.paused:
+                self._expire_layout()
                 self._stop.wait(interval)
                 continue
             try:
@@ -753,6 +756,18 @@ class Tracker:
             elapsed = time.time() - started
             self._stop.wait(max(0.1, interval - elapsed))
 
+    def _layout_max_misses(self):
+        return int(self.config.get("layout_max_missed_polls", 5))
+
+    def _expire_layout(self):
+        """The game left the screen, so what the layout pointed at is unknown.
+
+        The next poll that cannot find the table drops the layout instead of
+        reading from it.
+        """
+        if self._layout is not None:
+            self._layout_misses = self._layout_max_misses()
+
     def _locate(self, frame, origin):
         """Where to read the cards from in this frame.
 
@@ -766,18 +781,39 @@ class Tracker:
         if table_layout.looks_plausible(layout):
             self._layout = layout
             self._layout_source = "dynamic"
+            self._layout_misses = 0
         elif self._layout is not None:
-            self._layout_source = "cached"
+            # A hand sweeping across costs a few frames, not many. Past that
+            # the table is gone (another page, another window), and the old
+            # boxes would read whatever is there now: any bright page area
+            # counts as a card being present, so CardMemory would never see an
+            # empty table and the last hand would be held for ever.
+            self._layout_misses += 1
+            if self._layout_misses > self._layout_max_misses():
+                logger.info("Table not found for %d polls; dropping the last "
+                            "good layout", self._layout_misses)
+                self._layout = None
+                self._layout_lost = True
+                self._layout_source = "lost"
+            else:
+                self._layout_source = "cached"
+        elif self._layout_lost:
+            # A layout was found once and then lost. The calibrated boxes are
+            # no better a place to look than the ones just dropped.
+            self._layout_source = "lost"
         else:
             # Nothing found and nothing found before, so the calibrated boxes
             # are all that is left - and when there are none of those either,
             # say so rather than blaming a calibration that was never done.
             self._layout_source = ("calibrated" if self.config.get("regions")
                                    else "none")
-        regions = table_layout.merge(
-            self._layout if self._layout_source != "calibrated" else None,
-            self.config.get("regions") or {},
-        )
+        if self._layout_source == "lost":
+            regions = {}
+        else:
+            regions = table_layout.merge(
+                self._layout if self._layout_source != "calibrated" else None,
+                self.config.get("regions") or {},
+            )
         # Where each box came from, for the live diagnostics: found in this
         # frame, kept from the last frame the table was found in, or calibrated.
         # A kept or calibrated box reads whatever that part of the screen shows
