@@ -633,3 +633,77 @@ def test_pausing_makes_the_next_missed_table_drop_the_layout(frame, monkeypatch)
     tracker2._expire_layout()
     shown, _ = _feed(tracker_module, tracker2, monkeypatch, frame)
     assert tracker2._layout_source == "dynamic" and shown == EXPECTED
+
+
+# -- an empty table between rounds is not a table that has gone ----------------
+
+def _deal_only(frame):
+    """Only the player's two cards on the felt: the first thing a new deal shows."""
+    return blank(frame, [slot for slot in REGIONS if not slot.startswith("player")])
+
+
+def test_the_hole_cards_are_read_at_the_deal_after_a_long_empty_gap(frame, monkeypatch):
+    """The gap between rounds is long (tens of polls) and the felt is simply empty. The deal puts the player's two cards down
+    first and the community cards later, so no fresh layout is plausible yet; the remembered boxes are the only way to read them."""
+    import queue
+
+    import tracker as tracker_module
+
+    tracker = tracker_module.Tracker({"monitor": 1}, queue.Queue())
+    _feed(tracker_module, tracker, monkeypatch, frame)
+    felt = np.full_like(frame, FELT)
+    layout = tracker._layout
+    for _ in range(25):
+        _feed(tracker_module, tracker, monkeypatch, felt)
+        assert tracker._layout_source == "cached"
+    assert tracker._layout is layout                    # the layout did not churn through the gap
+
+    shown, _ = _feed(tracker_module, tracker, monkeypatch, _deal_only(frame))
+    assert tracker._layout_source == "cached"
+    assert shown["player_1"] == EXPECTED["player_1"] and shown["player_2"] == EXPECTED["player_2"]
+
+
+def test_an_ordinary_gap_logs_nothing_about_a_lost_layout(frame, monkeypatch, caplog):
+    import logging
+    import queue
+
+    import tracker as tracker_module
+
+    caplog.set_level(logging.INFO)
+    tracker = tracker_module.Tracker({"monitor": 1}, queue.Queue())
+    _feed(tracker_module, tracker, monkeypatch, frame)
+    for _ in range(25):
+        _feed(tracker_module, tracker, monkeypatch, np.full_like(frame, FELT))
+    assert "not reading from it" not in caplog.text
+
+
+def test_a_changed_screen_is_left_after_the_gap_but_cards_dealt_into_the_boxes_revive_it(frame, monkeypatch):
+    """Non-card content in the remembered boxes stops them being read; once they hold cards again they are read again."""
+    import queue
+
+    import tracker as tracker_module
+
+    tracker = tracker_module.Tracker({"monitor": 1}, queue.Queue())
+    _feed(tracker_module, tracker, monkeypatch, frame)
+    page = _web_page(frame)
+    for _ in range(tracker._layout_max_misses() + 1):
+        _feed(tracker_module, tracker, monkeypatch, page)
+    assert tracker._layout_source == "lost" and tracker._last_regions == {}
+
+    shown, _ = _feed(tracker_module, tracker, monkeypatch, _deal_only(frame))
+    assert tracker._layout_source == "cached"           # the table is back where it was
+    assert shown["player_1"] == EXPECTED["player_1"]
+
+
+def test_pausing_does_not_drop_the_layout_over_an_empty_table(frame, monkeypatch):
+    import queue
+
+    import tracker as tracker_module
+
+    tracker = tracker_module.Tracker({"monitor": 1}, queue.Queue())
+    _feed(tracker_module, tracker, monkeypatch, frame)
+    tracker._expire_layout()
+    _feed(tracker_module, tracker, monkeypatch, np.full_like(frame, FELT))
+    assert tracker._layout_source == "cached"
+    shown, _ = _feed(tracker_module, tracker, monkeypatch, _deal_only(frame))
+    assert shown["player_1"] == EXPECTED["player_1"]

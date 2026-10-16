@@ -646,7 +646,7 @@ class Tracker:
         self._layout = None
         self._layout_source = None
         self._layout_misses = 0        # polls in a row the table was not found
-        self._layout_lost = False      # a layout was found once, then dropped
+        self._layout_stale = False     # the remembered boxes now show non-card content
         self._dealer_note = {}         # last rejection logged per dealer slot
         self._status_note = {}         # last ambiguity logged per slot
         # The pixels each slot showed last poll, and what they were read as.
@@ -762,11 +762,28 @@ class Tracker:
     def _expire_layout(self):
         """The game left the screen, so what the layout pointed at is unknown.
 
-        The next poll that cannot find the table drops the layout instead of
-        reading from it.
+        The next poll that cannot find the table checks what the remembered
+        boxes show now instead of trusting them.
         """
         if self._layout is not None:
             self._layout_misses = self._layout_max_misses()
+
+    def _boxes_show_non_cards(self, frame, origin):
+        """True when the remembered boxes hold something bright that is not a card.
+
+        An empty table reads as nothing in every box, and a card dealt into a
+        box reads as a card - both leave the layout where it is, which is what
+        the player's cards at the next deal need: the community cards that make
+        a fresh layout plausible are not out yet. A web page or another window
+        is bright but unreadable, and CardMemory would take it for cards that
+        never leave.
+        """
+        regions = (self._layout or {}).get("regions") or {}
+        images = {slot: crop(frame, region, origin)
+                  for slot, region in regions.items() if slot in CARD_SLOTS}
+        _, reads = read_table(self.config, images)
+        return (any(read["present"] for read in reads.values())
+                and not any(read["confident"] for read in reads.values()))
 
     def _locate(self, frame, origin):
         """Where to read the cards from in this frame.
@@ -782,25 +799,24 @@ class Tracker:
             self._layout = layout
             self._layout_source = "dynamic"
             self._layout_misses = 0
+            self._layout_stale = False
         elif self._layout is not None:
             # A hand sweeping across costs a few frames, not many. Past that
-            # the table is gone (another page, another window), and the old
-            # boxes would read whatever is there now: any bright page area
-            # counts as a card being present, so CardMemory would never see an
-            # empty table and the last hand would be held for ever.
+            # the boxes are looked at: bright page content that is not a card
+            # would count as a card being present, so CardMemory would never
+            # see an empty table and the last hand would be held for ever. The
+            # layout itself is kept, so the boxes are used again as soon as
+            # they hold cards or nothing - and the calibrated boxes are no
+            # better a place to look, so a stale layout reads nowhere.
             self._layout_misses += 1
-            if self._layout_misses > self._layout_max_misses():
-                logger.info("Table not found for %d polls; dropping the last "
-                            "good layout", self._layout_misses)
-                self._layout = None
-                self._layout_lost = True
-                self._layout_source = "lost"
-            else:
-                self._layout_source = "cached"
-        elif self._layout_lost:
-            # A layout was found once and then lost. The calibrated boxes are
-            # no better a place to look than the ones just dropped.
-            self._layout_source = "lost"
+            stale = (self._layout_misses > self._layout_max_misses()
+                     and self._boxes_show_non_cards(frame, origin))
+            if stale and not self._layout_stale:
+                logger.info("Table not found for %d polls and the last good "
+                            "layout now shows non-card content; not reading "
+                            "from it", self._layout_misses)
+            self._layout_stale = stale
+            self._layout_source = "lost" if stale else "cached"
         else:
             # Nothing found and nothing found before, so the calibrated boxes
             # are all that is left - and when there are none of those either,
@@ -925,7 +941,8 @@ class Tracker:
         frame, origin = self._frame
         self._frame = None
         try:
-            snapshot = self.panels.observe(frame, origin, self._layout,
+            snapshot = self.panels.observe(frame, origin,
+                                           None if self._layout_stale else self._layout,
                                            round_id=self.memory.generation,
                                            cards=cards)
         except Exception as exc:  # noqa: BLE001 - the panel is a second source, never a blocker

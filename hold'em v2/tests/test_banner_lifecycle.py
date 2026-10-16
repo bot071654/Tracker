@@ -421,3 +421,53 @@ def test_the_voice_is_silenced_even_if_the_rest_of_stop_fails(application,
     assert application.announcer.pending() == 0
     assert application._spoken_decision is None
     assert_hidden(application)
+
+
+# -- Teach / Correct Scenario and a paused tracker --------------------------------
+
+def _pause(application):
+    import window_focus
+    application.tracker.focus.state = window_focus.GAME_INACTIVE
+    application._show_focus(window_focus.GAME_INACTIVE)
+    application.root.update()
+
+
+def _teach_recorder(application, monkeypatch):
+    import app as app_module
+    opened, told = [], []
+    monkeypatch.setattr(app_module, "TeachScenarioWindow",
+                        lambda root, snapshot, **kwargs: opened.append(kwargs))
+    monkeypatch.setattr(app_module.messagebox, "showinfo",
+                        lambda title, message, **_k: told.append(message))
+    return opened, told
+
+
+def test_teach_opens_on_the_live_scenario_while_the_game_is_active(application, monkeypatch):
+    opened, told = _teach_recorder(application, monkeypatch)
+    begin(application)
+    deliver(application, se.PLAY)
+    application.teach_scenario()
+    assert len(opened) == 1 and told == []
+    assert opened[0]["is_current"]()[0] is True
+
+
+def test_teach_is_refused_while_the_game_is_paused(application, monkeypatch):
+    """The banner is down while paused, so the last update is not what is on screen: nothing is captured."""
+    import app as app_module
+    opened, told = _teach_recorder(application, monkeypatch)
+    begin(application)
+    deliver(application, se.PLAY)
+    _pause(application)
+    application.teach_scenario()
+    assert opened == [] and told == [app_module.GAME_PAUSED_TEACH]
+
+
+def test_a_teach_window_goes_stale_when_the_game_is_paused_after_it_opens(application, monkeypatch):
+    import app as app_module
+    opened, _ = _teach_recorder(application, monkeypatch)
+    begin(application)
+    deliver(application, se.PLAY)
+    application.teach_scenario()
+    assert opened[0]["is_current"]()[0] is True
+    _pause(application)
+    assert opened[0]["is_current"]() == (False, app_module.GAME_PAUSED_TEACH)

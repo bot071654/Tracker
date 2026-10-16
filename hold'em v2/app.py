@@ -72,6 +72,10 @@ PAUSED_GREY = "#777777"
 ACTIVE_GREEN = "#0b6"
 GAME_ACTIVE_STATUS = "TRACKING ACTIVE — GAME ACTIVE"
 GAME_PAUSED_STATUS = "TRACKING PAUSED — GAME NOT ACTIVE"
+GAME_PAUSED_TEACH = ("Tracking is paused because the game is not the window in "
+                     "front, so the scenario on screen may be out of date. "
+                     "Bring the game back to the front, wait for a decision, "
+                     "then press Teach / Correct Scenario again.")
 
 # STOPPED needs to read as unmistakably different from RUNNING at a glance -
 # text alone ("Status: STOPPED" vs "Status: RUNNING") was too easy to miss,
@@ -956,6 +960,10 @@ class App:
                 "the two Scenarios windows.",
                 parent=self.root)
             return
+        if self.tracker.focus.paused:
+            messagebox.showinfo("Teach / Correct Scenario", GAME_PAUSED_TEACH,
+                                parent=self.root)
+            return
 
         snapshot, why = teaching.capture(
             self.latest_payload, self.scenarios, self.teach_session,
@@ -964,14 +972,21 @@ class App:
             messagebox.showinfo("Teach / Correct Scenario", why, parent=self.root)
             return
 
+        def still_current():
+            # A paused tracker is not feeding the window: the last update is
+            # from before the game left the front, and the banner is down.
+            if self.tracker.focus.paused:
+                return False, GAME_PAUSED_TEACH
+            return snapshot.is_current(
+                self.teach_session,
+                (self.latest_payload or {}).get("round_id"),
+                self.tracker.is_running())
+
         TeachScenarioWindow(
             self.root, snapshot, rules=self.scenarios,
             # Asked again at Save & Test and at Activate. The round id is the
             # tracker's own (CardMemory's generation), never one invented here.
-            is_current=lambda: snapshot.is_current(
-                self.teach_session,
-                (self.latest_payload or {}).get("round_id"),
-                self.tracker.is_running()),
+            is_current=still_current,
             on_change=self.reload_scenarios)
 
     def reload_scenarios(self):
