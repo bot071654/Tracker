@@ -62,6 +62,10 @@ class SignInController:
     def needs_sign_in(self):
         return appconfig.remote_mode() and self.configured() and not self.backend.signed_in()
 
+    def session_state(self):
+        """What the server says about the stored session (see RemoteBackend.verify_session)."""
+        return self.backend.verify_session()
+
 
 def describe_account(backend):
     session = backend.store.load() if backend else None
@@ -100,7 +104,7 @@ def open_folder(path):
 
 # --------------------------------------------------------------------------- dialogs (thin)
 
-def _sign_in_dialog(root, controller):
+def _sign_in_dialog(root, controller, notice=None):
     """Modal sign-in. Returns True when signed in, False when the user chose to work offline."""
     import tkinter as tk
     from tkinter import ttk
@@ -112,7 +116,7 @@ def _sign_in_dialog(root, controller):
     top.transient(root)
     frame = ttk.Frame(top, padding=16)
     frame.grid()
-    ttk.Label(frame, text="Sign in to record your hands to the shared database.", wraplength=360).grid(
+    ttk.Label(frame, text=notice or "Sign in to record your hands to the shared database.", wraplength=360).grid(
         row=0, column=0, columnspan=2, sticky="w", pady=(0, 10))
 
     rows = 1
@@ -207,8 +211,14 @@ def show_about(root, backend):
 
 # --------------------------------------------------------------------------- entry points used by app.main()
 
+SESSION_ENDED_NOTICE = "Your saved sign-in is no longer accepted by the server. Sign in again to record your hands."
+_session_note = ""          # shown by finish() when the stored session could not be checked at start-up
+
+
 def startup(root):
     """Before the main window exists: banner in the log, then sign in if this build needs it."""
+    global _session_note
+    _session_note = ""
     logsetup.log_startup(logging.getLogger("startup"))
     logger.info("Mode: %s", appconfig.describe())
     if not appconfig.remote_mode():
@@ -216,8 +226,21 @@ def startup(root):
     try:
         from desktop import backend as remote
         controller = SignInController(remote.get())
-        if controller.needs_sign_in() or not controller.configured():
-            _sign_in_dialog(root, controller)
+        notice = None
+        if not controller.configured() or controller.needs_sign_in():
+            show = True
+        else:
+            # A session that has not expired here may still have been ended there (revoked, a different server, a
+            # rebuilt database), so it is only trusted once the server has been asked.
+            state = controller.session_state()
+            show = state == remote.REJECTED
+            if show:
+                notice = SESSION_ENDED_NOTICE
+                logger.info("The stored session was refused by the backend; asking for sign-in")
+            elif state == remote.UNVERIFIED:
+                _session_note = "backend not reachable - hands will wait in the outbox"
+        if show:
+            _sign_in_dialog(root, controller, notice)
     except Exception:  # noqa: BLE001 - a broken dialog must not stop the tracker from opening
         logger.exception("Sign-in step failed; continuing without a session")
 
@@ -230,6 +253,8 @@ def finish(app, root):
             from desktop import backend as remote
             backend = remote.get()
         line = "%s  |  %s" % (version.describe(), describe_account(backend) if backend else "direct database (development)")
+        if _session_note:
+            line += "  |  " + _session_note
         app.set_message(line)
         root.bind("<F1>", lambda _event: show_about(root, backend))
     except Exception:  # noqa: BLE001

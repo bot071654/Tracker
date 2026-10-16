@@ -24,6 +24,9 @@ from desktop.session import SessionStore
 
 logger = logging.getLogger(__name__)
 
+# What verify_session() can say about the stored session.
+NO_SESSION, VERIFIED, REJECTED, UNVERIFIED = "no_session", "verified", "rejected", "unverified"
+
 OUTBOX_FILE = "outbox.jsonl"
 OUTBOX_LIMIT = 5000
 
@@ -72,6 +75,9 @@ class RemoteBackend:
         self._client = client
         self._outbox_path = outbox_path
         self._lock = threading.Lock()
+        # The stored token the server has refused. Remembered for this run only (the file is never touched), so a
+        # rejected session is not treated as signed in again until a new sign-in replaces it.
+        self._rejected = None
 
     # ---- plumbing -----------------------------------------------------------------------------
 
@@ -95,11 +101,42 @@ class RemoteBackend:
         expires = session.get("expires_at")
         if expires:
             try:
-                if datetime.datetime.fromisoformat(expires) <= datetime.datetime.now(datetime.timezone.utc):
+                when = datetime.datetime.fromisoformat(expires)
+                if when.tzinfo is None:                 # the server sends an offset; a bare time is read as UTC
+                    when = when.replace(tzinfo=datetime.timezone.utc)
+                if when <= datetime.datetime.now(datetime.timezone.utc):
                     return None
-            except ValueError:
+            except (ValueError, TypeError):
                 pass
-        return session["access_token"]
+        token = session["access_token"]
+        return None if token == self._rejected else token
+
+    def _note_rejected(self):
+        session = self.store.load()
+        if session:
+            self._rejected = session.get("access_token")
+
+    def verify_session(self):
+        """Ask the server whether the stored session is still good. Never raises.
+
+        NO_SESSION (nothing usable stored), VERIFIED, REJECTED (the server refused the token: it counts as signed out
+        from now on, and the stored file is left alone) or UNVERIFIED (the server could not be asked, so nothing is known).
+        """
+        if not self.signed_in():
+            return NO_SESSION
+        try:
+            url = appconfig.api_url()
+            if not url:
+                return UNVERIFIED
+            probe = ApiClient(url, token=self._token, device_id=self.store.device_id, timeout=5.0, retries=0)
+            probe.me()
+        except AuthError:
+            self._note_rejected()
+            return REJECTED
+        except (ApiError, appconfig.ConfigError) as exc:
+            logger.info("Could not check the stored session: %s", exc)
+            return UNVERIFIED
+        return VERIFIED
 
     def signed_in(self):
         return bool(self._token())
@@ -112,6 +149,7 @@ class RemoteBackend:
         try:
             result = fn(*args, **kwargs)
         except AuthError as exc:
+            self._note_rejected()
             raise db.DatabaseError("Not signed in to the backend: %s" % exc) from exc
         except OfflineError as exc:
             raise db.DatabaseError("%s" % exc) from exc
@@ -128,10 +166,17 @@ class RemoteBackend:
         session = {"access_token": reply["access_token"], "expires_at": reply.get("expires_at"),
                    "email": (reply.get("user") or {}).get("email", email)}
         self.store.save(session)
+        self._rejected = None
         if not self.store.device_id():
-            device = client.register_device(_device_name(), version.platform_name(), version.architecture(),
-                                            version.VERSION)
-            self.store.save_device_id(device["device_id"])
+            try:
+                device = client.register_device(_device_name(), version.platform_name(), version.architecture(),
+                                                version.VERSION)
+                self.store.save_device_id(device["device_id"])
+            except Exception:
+                # A sign-in that reports failure must not leave a session behind: the next start would show the
+                # person as signed in with no device, and nothing would ever ask them to try again.
+                self.store.clear()
+                raise
         logger.info("Signed in as %s", session["email"])
         return session
 
@@ -170,6 +215,8 @@ class RemoteBackend:
         try:
             reply = self.client().submit_hand(wire)
         except (OfflineError, AuthError) as exc:
+            if isinstance(exc, AuthError):
+                self._note_rejected()
             self._queue(wire)           # offline or signed out: keep it until it can be delivered
             raise db.DatabaseError("%s" % exc) from exc
         except ApiError as exc:         # the server understood and refused: queueing would only repeat it
