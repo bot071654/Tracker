@@ -80,6 +80,37 @@ SUIT_MARGIN = 0.05
 # (at 0.10, 24 of 104 are never read at all), so it stays where it is.
 RANK_MARGIN = 0.10
 
+# SHAPE CORROBORATION OF THE TWO BLACK SUITS (result-panel thumbnails only)
+#
+# The result panels print each card about 34 x 47 pixels. At that size a spade and a club still match their own template
+# best, but only just: the saved panel crops are 215 refused thumbnails (213 spades of all thirteen ranks, 2 clubs), every
+# one of them correct by eye, and every one refused for the suit - the spade beat the club by 0.028 to 0.050, median
+# 0.032, against the 0.05 a suit has to win by. It is not noise: the spread is a few thousandths wide, because the
+# thumbnails are rendered identically. It is the measure: normalised correlation of two heavy blobs is about 0.9 whichever
+# suit they are, and what tells a spade from a club - a pointed top against three lobes - is a small share of the pixels.
+# Live that refused 220 of the player panel's thumbnails and left the panel unable to confirm any hand with a spade in it.
+#
+# The two suits differ in a way that does not depend on resolution: the width of the pip row by row. A spade widens
+# steadily from its point to its belly; a club has a round top lobe, so it is already wide near the top and then stays
+# about as wide until its two lower lobes open out. `pip_shape` measures exactly that: the width over the fifth and sixth
+# sixteenths of the pip's height minus the width over its first three, each relative to its widest row.
+#
+#   spades  213 saved thumbnails   0.486 - 0.514      31 table-size glyphs   0.431 - 0.575
+#   clubs     2 saved thumbnails   0.146 - 0.152      25 table-size glyphs   0.029 - 0.288
+#
+# (the one table-size club at 0.288 is the idealised C.png template; every real club crop is at or below 0.145, every real
+# spade at or above 0.431.) The thresholds sit inside that gap, nearer the clubs, and between them the shape has no opinion.
+#
+# The shape never decides a suit by itself. It corroborates the template match: a suit is accepted at a template margin of
+# CORROBORATED_SUIT_MARGIN (the spade thumbnails' worst is 0.028) only when the pip's outline independently says the same
+# suit. A club whose template match favoured the spade would also need a spade-shaped outline to be misread, and where the
+# outline and the template disagree, or the outline is neither, the card is still refused. Cards on the table are not
+# read this way at all (see `corroborate_suit`): their margins have always been wide enough.
+CORROBORATED_SUIT_MARGIN = 0.02
+SHAPE_SPADE_MIN = 0.38
+SHAPE_CLUB_MAX = 0.22
+SHAPE_BINS = 16
+
 _templates = None  # {"ranks": {label: [images]}, "suits": {label: [images]}}
 
 
@@ -232,13 +263,41 @@ def _read_glyphs(glyphs, templates):
             reading["suit_score"], reading["suit_margin"])
 
 
-def _decisive(rank_margin, suit_margin):
+def pip_shape(glyph):
+    """(suit, score) read from the outline of a black pip alone: "S", "C" or None, and the number it was decided on.
+
+    The score is how much wider the pip is over the fifth and sixth sixteenths of its height than over the first three
+    (each row's width relative to the widest): about 0.5 for a spade, 0.15 or less for a club. Between SHAPE_CLUB_MAX and
+    SHAPE_SPADE_MIN, or for a glyph with no ink, there is no opinion.
+    """
+    import numpy as np
+    if glyph is None:
+        return None, 0.0
+    ink = glyph > 0
+    rows = np.where(ink.any(axis=1))[0]
+    if len(rows) < SHAPE_BINS:
+        return None, 0.0
+    widths = ink[rows[0]:rows[-1] + 1].sum(axis=1).astype(float)
+    profile = np.interp(np.linspace(0, len(widths) - 1, SHAPE_BINS), np.arange(len(widths)), widths)
+    profile = profile / profile.max()
+    score = float(profile[4:6].mean() - profile[0:3].mean())
+    if score >= SHAPE_SPADE_MIN:
+        return "S", score
+    if score <= SHAPE_CLUB_MAX:
+        return "C", score
+    return None, score
+
+
+def _decisive(rank_margin, suit_margin, corroborated=False):
     """Did both halves of the card beat what they were being chosen between?
 
     Both have to clear their own margin. A reading where either half was a
-    coin toss is not a card, however well the other half matched.
+    coin toss is not a card, however well the other half matched. A suit whose
+    template margin is short of SUIT_MARGIN counts as settled only when the pip's
+    outline corroborates it (see `pip_shape`); that is only ever offered to
+    result-panel thumbnails.
     """
-    return rank_margin >= RANK_MARGIN and suit_margin >= SUIT_MARGIN
+    return rank_margin >= RANK_MARGIN and (suit_margin >= SUIT_MARGIN or corroborated)
 
 
 def undecided_half(read):
@@ -255,7 +314,7 @@ def undecided_half(read):
     return None
 
 
-def recognize_card(image, threshold=0.62, detail=False):
+def recognize_card(image, threshold=0.62, detail=False, corroborate_suit=False):
     """Recognise a single card image.
 
     Returns a dict:
@@ -276,6 +335,11 @@ def recognize_card(image, threshold=0.62, detail=False):
     ink colour, the top rank scores, both suit scores of that colour, and the
     rank and suit glyph images the templates were matched against. Asking for
     detail changes nothing about the answer.
+
+    With `corroborate_suit` (the result panels' thumbnails, and nothing else), a
+    black suit that won by CORROBORATED_SUIT_MARGIN rather than SUIT_MARGIN is
+    accepted when the outline of the pip says the same suit; see `pip_shape`.
+    Every refusal that does not meet both conditions stands.
     """
     templates = load_templates()
     if not templates["ranks"] or not templates["suits"]:
@@ -294,6 +358,9 @@ def recognize_card(image, threshold=0.62, detail=False):
         if rank is None or suit is None:
             continue
         confidence = min(rank_score, suit_score)
+        corroborated = False
+        if corroborate_suit and suit in BLACK_SUITS and suit_margin >= CORROBORATED_SUIT_MARGIN:
+            corroborated = pip_shape(glyphs["suit"])[0] == suit
         tried.append((index, rank + suit, round(confidence, 4), round(suit_margin, 4)))
         readings.append({
             "index": index,
@@ -307,7 +374,8 @@ def recognize_card(image, threshold=0.62, detail=False):
             "suit_score": suit_score,
             "rank_margin": rank_margin,
             "suit_margin": suit_margin,
-            "decisive": _decisive(rank_margin, suit_margin),
+            "corroborated": corroborated,
+            "decisive": _decisive(rank_margin, suit_margin, corroborated),
         })
 
     if not readings:
@@ -353,10 +421,12 @@ def recognize_card(image, threshold=0.62, detail=False):
         "suit_confidence": round(settled["suit_score"], 4),
         "rank_margin": round(settled["rank_margin"], 4),
         "suit_margin": round(settled["suit_margin"], 4),
+        # True when the suit was accepted on the pip's outline agreeing with a template margin short of SUIT_MARGIN.
+        "suit_corroborated": bool(settled["corroborated"] and settled["suit_margin"] < SUIT_MARGIN),
     }
     chosen = (settled["index"], settled["glyphs"], settled["reading"])
 
-    decisive = _decisive(best["rank_margin"], best["suit_margin"])
+    decisive = _decisive(best["rank_margin"], best["suit_margin"], settled["corroborated"])
     best["confident"] = best["confidence"] >= threshold and decisive
     if not decisive:
         logger.debug(
@@ -382,7 +452,7 @@ def recognize_card(image, threshold=0.62, detail=False):
 
 
 def read_slot(image, confidence_threshold=0.62, presence_threshold=0.35,
-              detail=False):
+              detail=False, corroborate_suit=False):
     """Read one calibrated region.
 
     Returns a dict describing the slot:
@@ -405,7 +475,8 @@ def read_slot(image, confidence_threshold=0.62, presence_threshold=0.35,
         return result
 
     try:
-        recognized = recognize_card(image, confidence_threshold, detail=detail)
+        recognized = recognize_card(image, confidence_threshold, detail=detail,
+                                    corroborate_suit=corroborate_suit)
     except TemplatesMissingError:
         raise
     except Exception as exc:  # noqa: BLE001 - a bad frame must not stop tracking
@@ -423,6 +494,7 @@ def read_slot(image, confidence_threshold=0.62, presence_threshold=0.35,
         "suit_confidence": recognized["suit_confidence"],
         "rank_margin": recognized["rank_margin"],
         "suit_margin": recognized["suit_margin"],
+        "suit_corroborated": recognized["suit_corroborated"],
     })
     if "detail" in recognized:
         result["detail"] = recognized["detail"]

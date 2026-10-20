@@ -47,3 +47,23 @@ def no_real_speech(monkeypatch):
         raise ImportError("No module named 'pyttsx3' (disabled for tests)")
 
     monkeypatch.setattr(engines, "Pyttsx3Engine", no_engine)
+
+
+@pytest.fixture(autouse=True)
+def tracker_test_defaults(monkeypatch):
+    """Keep the tracker's two live-machine behaviours out of tests that did not ask for them.
+
+    * Saves run on the polling thread, so a save has finished when the call returns (tests that exercise the background
+      worker turn it back on).
+    * The tracker does not ask Windows for this process's window rectangles: a test that leaves a window open must not make
+      synthetic card boxes look covered (tests of the exclusion supply their own rectangles).
+    """
+    import tracker
+    monkeypatch.setattr(tracker.Tracker, "ASYNC_SAVE", False, raising=False)
+    original_init = tracker.Tracker.__init__
+
+    def init(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        self._own_rects = lambda: []
+
+    monkeypatch.setattr(tracker.Tracker, "__init__", init)

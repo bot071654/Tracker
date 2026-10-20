@@ -1,0 +1,2370 @@
+{
+ "about": "Result-panel thumbnails (about 34 x 47 px) that the installed Poker Hand Tracker saved because it refused them, copied unchanged from %LOCALAPPDATA%/PokerHandTracker/logs/failures (15-17 Oct 2026, builds 202610090631 to 202610171210, the casino table in Chrome). `card` is the card shown, established by looking at every crop on contact sheets (the rank and suit were each checked by eye; the old recogniser's own guess happened to agree for all 215). `at_the_time` is what the recogniser reported when it refused the crop: its best card, and how far the suit beat the other suit of its colour (it needs 0.05). The set is refusals only - it says nothing about thumbnails that were accepted.",
+ "crops": [
+  {
+   "file": "20261015-155204_panel_dealer_1_ambiguous.png",
+   "card": "10S",
+   "panel_row": "dealer_1",
+   "at_the_time": {
+    "best_card": "10S",
+    "suit_margin": 0.0284,
+    "rank_confidence": 0.8945,
+    "suit_confidence": 0.9285
+   }
+  },
+  {
+   "file": "20261015-155254_panel_player_3_ambiguous.png",
+   "card": "10S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "10S",
+    "suit_margin": 0.0284,
+    "rank_confidence": 0.8945,
+    "suit_confidence": 0.9285
+   }
+  },
+  {
+   "file": "20261015-155256_panel_player_3_ambiguous.png",
+   "card": "10S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "10S",
+    "suit_margin": 0.0284,
+    "rank_confidence": 0.8945,
+    "suit_confidence": 0.9285
+   }
+  },
+  {
+   "file": "20261015-155258_panel_player_4_ambiguous.png",
+   "card": "10S",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "10S",
+    "suit_margin": 0.0417,
+    "rank_confidence": 0.8887,
+    "suit_confidence": 0.9362
+   }
+  },
+  {
+   "file": "20261015-155302_panel_player_4_ambiguous.png",
+   "card": "10S",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "10S",
+    "suit_margin": 0.0417,
+    "rank_confidence": 0.8887,
+    "suit_confidence": 0.9362
+   }
+  },
+  {
+   "file": "20261015-155308_panel_player_4_ambiguous.png",
+   "card": "10S",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "10S",
+    "suit_margin": 0.0417,
+    "rank_confidence": 0.8887,
+    "suit_confidence": 0.9362
+   }
+  },
+  {
+   "file": "20261016-152314_panel_player_3_ambiguous.png",
+   "card": "10S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "10S",
+    "suit_margin": 0.0284,
+    "rank_confidence": 0.8945,
+    "suit_confidence": 0.9285
+   }
+  },
+  {
+   "file": "20261016-152315_panel_player_2_ambiguous.png",
+   "card": "10S",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "10S",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.9022,
+    "suit_confidence": 0.9328
+   }
+  },
+  {
+   "file": "20261016-162842_panel_player_3_ambiguous.png",
+   "card": "10S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "10S",
+    "suit_margin": 0.0284,
+    "rank_confidence": 0.895,
+    "suit_confidence": 0.9285
+   }
+  },
+  {
+   "file": "20261016-162843_panel_player_3_ambiguous.png",
+   "card": "10S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "10S",
+    "suit_margin": 0.0284,
+    "rank_confidence": 0.8945,
+    "suit_confidence": 0.9285
+   }
+  },
+  {
+   "file": "20261016-162844_panel_player_3_ambiguous.png",
+   "card": "10S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "10S",
+    "suit_margin": 0.0284,
+    "rank_confidence": 0.8945,
+    "suit_confidence": 0.9285
+   }
+  },
+  {
+   "file": "20261016-162846_panel_player_2_ambiguous.png",
+   "card": "10S",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "10S",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.9022,
+    "suit_confidence": 0.9328
+   }
+  },
+  {
+   "file": "20261017-143257_panel_player_3_ambiguous.png",
+   "card": "10S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "10S",
+    "suit_margin": 0.0417,
+    "rank_confidence": 0.8981,
+    "suit_confidence": 0.9344
+   }
+  },
+  {
+   "file": "20261017-143258_panel_player_3_ambiguous.png",
+   "card": "10S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "10S",
+    "suit_margin": 0.0284,
+    "rank_confidence": 0.8945,
+    "suit_confidence": 0.9285
+   }
+  },
+  {
+   "file": "20261017-143259_panel_player_3_ambiguous.png",
+   "card": "10S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "10S",
+    "suit_margin": 0.0284,
+    "rank_confidence": 0.8945,
+    "suit_confidence": 0.9285
+   }
+  },
+  {
+   "file": "20261017-143301_panel_player_3_ambiguous.png",
+   "card": "10S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "10S",
+    "suit_margin": 0.0284,
+    "rank_confidence": 0.8945,
+    "suit_confidence": 0.9285
+   }
+  },
+  {
+   "file": "20261017-143303_panel_player_1_ambiguous.png",
+   "card": "10S",
+   "panel_row": "player_1",
+   "at_the_time": {
+    "best_card": "10S",
+    "suit_margin": 0.0293,
+    "rank_confidence": 0.885,
+    "suit_confidence": 0.9309
+   }
+  },
+  {
+   "file": "20261017-155048_panel_player_2_ambiguous.png",
+   "card": "10S",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "10S",
+    "suit_margin": 0.0284,
+    "rank_confidence": 0.8945,
+    "suit_confidence": 0.9285
+   }
+  },
+  {
+   "file": "20261017-155054_panel_player_2_ambiguous.png",
+   "card": "10S",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "10S",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.9022,
+    "suit_confidence": 0.9328
+   }
+  },
+  {
+   "file": "20261017-155057_panel_player_3_ambiguous.png",
+   "card": "10S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "10S",
+    "suit_margin": 0.0284,
+    "rank_confidence": 0.895,
+    "suit_confidence": 0.9285
+   }
+  },
+  {
+   "file": "20261017-155100_panel_player_3_ambiguous.png",
+   "card": "10S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "10S",
+    "suit_margin": 0.0284,
+    "rank_confidence": 0.8945,
+    "suit_confidence": 0.9285
+   }
+  },
+  {
+   "file": "20261015-121857_panel_player_5_ambiguous.png",
+   "card": "2S",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "2S",
+    "suit_margin": 0.03,
+    "rank_confidence": 0.9103,
+    "suit_confidence": 0.9297
+   }
+  },
+  {
+   "file": "20261015-121859_panel_player_5_ambiguous.png",
+   "card": "2S",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "2S",
+    "suit_margin": 0.03,
+    "rank_confidence": 0.9103,
+    "suit_confidence": 0.9297
+   }
+  },
+  {
+   "file": "20261015-121901_panel_player_5_ambiguous.png",
+   "card": "2S",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "2S",
+    "suit_margin": 0.03,
+    "rank_confidence": 0.9103,
+    "suit_confidence": 0.9297
+   }
+  },
+  {
+   "file": "20261015-121904_panel_player_5_ambiguous.png",
+   "card": "2S",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "2S",
+    "suit_margin": 0.03,
+    "rank_confidence": 0.9103,
+    "suit_confidence": 0.9297
+   }
+  },
+  {
+   "file": "20261015-121907_panel_player_5_ambiguous.png",
+   "card": "2S",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "2S",
+    "suit_margin": 0.03,
+    "rank_confidence": 0.9103,
+    "suit_confidence": 0.9297
+   }
+  },
+  {
+   "file": "20261015-124300_panel_player_1_ambiguous.png",
+   "card": "2S",
+   "panel_row": "player_1",
+   "at_the_time": {
+    "best_card": "2S",
+    "suit_margin": 0.03,
+    "rank_confidence": 0.9103,
+    "suit_confidence": 0.9297
+   }
+  },
+  {
+   "file": "20261015-124325_panel_player_3_ambiguous.png",
+   "card": "2S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "2S",
+    "suit_margin": 0.0346,
+    "rank_confidence": 0.8918,
+    "suit_confidence": 0.9346
+   }
+  },
+  {
+   "file": "20261015-124330_panel_player_3_ambiguous.png",
+   "card": "2S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "2S",
+    "suit_margin": 0.0346,
+    "rank_confidence": 0.8918,
+    "suit_confidence": 0.9346
+   }
+  },
+  {
+   "file": "20261015-124331_panel_player_3_ambiguous.png",
+   "card": "2S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "2S",
+    "suit_margin": 0.0346,
+    "rank_confidence": 0.8918,
+    "suit_confidence": 0.9346
+   }
+  },
+  {
+   "file": "20261015-124334_panel_player_3_ambiguous.png",
+   "card": "2S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "2S",
+    "suit_margin": 0.0346,
+    "rank_confidence": 0.8918,
+    "suit_confidence": 0.9346
+   }
+  },
+  {
+   "file": "20261015-155915_panel_player_1_ambiguous.png",
+   "card": "2S",
+   "panel_row": "player_1",
+   "at_the_time": {
+    "best_card": "2S",
+    "suit_margin": 0.0305,
+    "rank_confidence": 0.9098,
+    "suit_confidence": 0.93
+   }
+  },
+  {
+   "file": "20261016-151438_panel_player_4_ambiguous.png",
+   "card": "2S",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "2S",
+    "suit_margin": 0.032,
+    "rank_confidence": 0.8951,
+    "suit_confidence": 0.9337
+   }
+  },
+  {
+   "file": "20261016-151440_panel_player_4_ambiguous.png",
+   "card": "2S",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "2S",
+    "suit_margin": 0.03,
+    "rank_confidence": 0.9103,
+    "suit_confidence": 0.9297
+   }
+  },
+  {
+   "file": "20261017-161143_panel_player_1_ambiguous.png",
+   "card": "2S",
+   "panel_row": "player_1",
+   "at_the_time": {
+    "best_card": "2S",
+    "suit_margin": 0.03,
+    "rank_confidence": 0.9103,
+    "suit_confidence": 0.9297
+   }
+  },
+  {
+   "file": "20261017-161205_panel_player_3_ambiguous.png",
+   "card": "2S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "2S",
+    "suit_margin": 0.0346,
+    "rank_confidence": 0.8918,
+    "suit_confidence": 0.9346
+   }
+  },
+  {
+   "file": "20261017-161208_panel_player_3_ambiguous.png",
+   "card": "2S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "2S",
+    "suit_margin": 0.0346,
+    "rank_confidence": 0.8918,
+    "suit_confidence": 0.9346
+   }
+  },
+  {
+   "file": "20261017-235300_panel_player_2_ambiguous.png",
+   "card": "3C",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "3C",
+    "suit_margin": 0.0491,
+    "rank_confidence": 0.879,
+    "suit_confidence": 0.9086
+   }
+  },
+  {
+   "file": "20261015-124407_panel_player_3_ambiguous.png",
+   "card": "3S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "3S",
+    "suit_margin": 0.03,
+    "rank_confidence": 0.8835,
+    "suit_confidence": 0.9297
+   }
+  },
+  {
+   "file": "20261015-124409_panel_player_3_ambiguous.png",
+   "card": "3S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "3S",
+    "suit_margin": 0.03,
+    "rank_confidence": 0.8835,
+    "suit_confidence": 0.9297
+   }
+  },
+  {
+   "file": "20261015-124410_panel_player_3_ambiguous.png",
+   "card": "3S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "3S",
+    "suit_margin": 0.03,
+    "rank_confidence": 0.8835,
+    "suit_confidence": 0.9297
+   }
+  },
+  {
+   "file": "20261015-124411_panel_player_3_ambiguous.png",
+   "card": "3S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "3S",
+    "suit_margin": 0.03,
+    "rank_confidence": 0.8835,
+    "suit_confidence": 0.9297
+   }
+  },
+  {
+   "file": "20261015-124412_panel_player_3_ambiguous.png",
+   "card": "3S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "3S",
+    "suit_margin": 0.03,
+    "rank_confidence": 0.8835,
+    "suit_confidence": 0.9297
+   }
+  },
+  {
+   "file": "20261015-124414_panel_player_5_ambiguous.png",
+   "card": "3S",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "3S",
+    "suit_margin": 0.0346,
+    "rank_confidence": 0.8927,
+    "suit_confidence": 0.9346
+   }
+  },
+  {
+   "file": "20261015-124418_panel_player_5_ambiguous.png",
+   "card": "3S",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "3S",
+    "suit_margin": 0.0346,
+    "rank_confidence": 0.8927,
+    "suit_confidence": 0.9346
+   }
+  },
+  {
+   "file": "20261015-124420_panel_player_5_ambiguous.png",
+   "card": "3S",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "3S",
+    "suit_margin": 0.0346,
+    "rank_confidence": 0.8927,
+    "suit_confidence": 0.9346
+   }
+  },
+  {
+   "file": "20261015-124421_panel_player_5_ambiguous.png",
+   "card": "3S",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "3S",
+    "suit_margin": 0.0346,
+    "rank_confidence": 0.8927,
+    "suit_confidence": 0.9346
+   }
+  },
+  {
+   "file": "20261015-121856_panel_player_2_ambiguous.png",
+   "card": "4S",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "4S",
+    "suit_margin": 0.0293,
+    "rank_confidence": 0.887,
+    "suit_confidence": 0.9309
+   }
+  },
+  {
+   "file": "20261015-155259_panel_player_5_ambiguous.png",
+   "card": "4S",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "4S",
+    "suit_margin": 0.0286,
+    "rank_confidence": 0.8849,
+    "suit_confidence": 0.9283
+   }
+  },
+  {
+   "file": "20261015-155302_panel_player_5_ambiguous.png",
+   "card": "4S",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "4S",
+    "suit_margin": 0.0286,
+    "rank_confidence": 0.8849,
+    "suit_confidence": 0.9283
+   }
+  },
+  {
+   "file": "20261015-155308_panel_player_5_ambiguous.png",
+   "card": "4S",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "4S",
+    "suit_margin": 0.0286,
+    "rank_confidence": 0.8849,
+    "suit_confidence": 0.9283
+   }
+  },
+  {
+   "file": "20261015-155314_panel_player_5_ambiguous.png",
+   "card": "4S",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "4S",
+    "suit_margin": 0.0286,
+    "rank_confidence": 0.8849,
+    "suit_confidence": 0.9283
+   }
+  },
+  {
+   "file": "20261016-162752_panel_player_4_ambiguous.png",
+   "card": "4S",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "4S",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.9075,
+    "suit_confidence": 0.9328
+   }
+  },
+  {
+   "file": "20261017-143353_panel_player_2_ambiguous.png",
+   "card": "4S",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "4S",
+    "suit_margin": 0.0286,
+    "rank_confidence": 0.8849,
+    "suit_confidence": 0.9283
+   }
+  },
+  {
+   "file": "20261017-143406_panel_player_1_ambiguous.png",
+   "card": "4S",
+   "panel_row": "player_1",
+   "at_the_time": {
+    "best_card": "4S",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.9072,
+    "suit_confidence": 0.9328
+   }
+  },
+  {
+   "file": "20261017-143421_panel_player_3_ambiguous.png",
+   "card": "4S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "4S",
+    "suit_margin": 0.0417,
+    "rank_confidence": 0.9079,
+    "suit_confidence": 0.9362
+   }
+  },
+  {
+   "file": "20261017-143424_panel_player_3_ambiguous.png",
+   "card": "4S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "4S",
+    "suit_margin": 0.0417,
+    "rank_confidence": 0.9074,
+    "suit_confidence": 0.9367
+   }
+  },
+  {
+   "file": "20261017-155245_panel_player_3_ambiguous.png",
+   "card": "4S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "4S",
+    "suit_margin": 0.0286,
+    "rank_confidence": 0.8849,
+    "suit_confidence": 0.9283
+   }
+  },
+  {
+   "file": "20261017-155246_panel_player_3_ambiguous.png",
+   "card": "4S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "4S",
+    "suit_margin": 0.0286,
+    "rank_confidence": 0.8849,
+    "suit_confidence": 0.9283
+   }
+  },
+  {
+   "file": "20261017-155247_panel_player_3_ambiguous.png",
+   "card": "4S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "4S",
+    "suit_margin": 0.0286,
+    "rank_confidence": 0.8849,
+    "suit_confidence": 0.9283
+   }
+  },
+  {
+   "file": "20261017-155254_panel_player_3_ambiguous.png",
+   "card": "4S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "4S",
+    "suit_margin": 0.0286,
+    "rank_confidence": 0.8849,
+    "suit_confidence": 0.9283
+   }
+  },
+  {
+   "file": "20261017-155312_panel_player_3_ambiguous.png",
+   "card": "4S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "4S",
+    "suit_margin": 0.0286,
+    "rank_confidence": 0.8849,
+    "suit_confidence": 0.9283
+   }
+  },
+  {
+   "file": "20261017-155433_panel_player_2_ambiguous.png",
+   "card": "4S",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "4S",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.9067,
+    "suit_confidence": 0.9328
+   }
+  },
+  {
+   "file": "20261017-155454_panel_player_4_ambiguous.png",
+   "card": "4S",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "4S",
+    "suit_margin": 0.0425,
+    "rank_confidence": 0.9074,
+    "suit_confidence": 0.9365
+   }
+  },
+  {
+   "file": "20261016-162839_panel_player_2_ambiguous.png",
+   "card": "5C",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "5C",
+    "suit_margin": 0.0483,
+    "rank_confidence": 0.8669,
+    "suit_confidence": 0.9114
+   }
+  },
+  {
+   "file": "20261015-155312_panel_player_2_ambiguous.png",
+   "card": "5S",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "5S",
+    "suit_margin": 0.03,
+    "rank_confidence": 0.8689,
+    "suit_confidence": 0.9297
+   }
+  },
+  {
+   "file": "20261015-155552_panel_player_2_ambiguous.png",
+   "card": "5S",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "5S",
+    "suit_margin": 0.0305,
+    "rank_confidence": 0.8689,
+    "suit_confidence": 0.93
+   }
+  },
+  {
+   "file": "20261015-155611_panel_player_3_ambiguous.png",
+   "card": "5S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "5S",
+    "suit_margin": 0.0323,
+    "rank_confidence": 0.8798,
+    "suit_confidence": 0.9319
+   }
+  },
+  {
+   "file": "20261017-235205_panel_player_1_ambiguous.png",
+   "card": "5S",
+   "panel_row": "player_1",
+   "at_the_time": {
+    "best_card": "5S",
+    "suit_margin": 0.03,
+    "rank_confidence": 0.8689,
+    "suit_confidence": 0.9297
+   }
+  },
+  {
+   "file": "20261017-235227_panel_player_4_ambiguous.png",
+   "card": "5S",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "5S",
+    "suit_margin": 0.0463,
+    "rank_confidence": 0.8833,
+    "suit_confidence": 0.9435
+   }
+  },
+  {
+   "file": "20261017-235228_panel_player_1_ambiguous.png",
+   "card": "5S",
+   "panel_row": "player_1",
+   "at_the_time": {
+    "best_card": "5S",
+    "suit_margin": 0.0305,
+    "rank_confidence": 0.8689,
+    "suit_confidence": 0.93
+   }
+  },
+  {
+   "file": "20261015-154905_panel_player_3_ambiguous.png",
+   "card": "6S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "6S",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.891,
+    "suit_confidence": 0.9328
+   }
+  },
+  {
+   "file": "20261015-155907_panel_player_2_ambiguous.png",
+   "card": "6S",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "6S",
+    "suit_margin": 0.0286,
+    "rank_confidence": 0.8922,
+    "suit_confidence": 0.9283
+   }
+  },
+  {
+   "file": "20261017-161523_panel_player_5_ambiguous.png",
+   "card": "6S",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "6S",
+    "suit_margin": 0.0286,
+    "rank_confidence": 0.893,
+    "suit_confidence": 0.9283
+   }
+  },
+  {
+   "file": "20261017-161524_panel_player_5_ambiguous.png",
+   "card": "6S",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "6S",
+    "suit_margin": 0.0286,
+    "rank_confidence": 0.893,
+    "suit_confidence": 0.9283
+   }
+  },
+  {
+   "file": "20261017-161527_panel_player_5_ambiguous.png",
+   "card": "6S",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "6S",
+    "suit_margin": 0.0286,
+    "rank_confidence": 0.893,
+    "suit_confidence": 0.9283
+   }
+  },
+  {
+   "file": "20261017-235308_panel_player_3_ambiguous.png",
+   "card": "6S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "6S",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.891,
+    "suit_confidence": 0.9328
+   }
+  },
+  {
+   "file": "20261015-154846_panel_player_4_ambiguous.png",
+   "card": "7S",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "7S",
+    "suit_margin": 0.0497,
+    "rank_confidence": 0.9264,
+    "suit_confidence": 0.9431
+   }
+  },
+  {
+   "file": "20261015-154850_panel_player_5_ambiguous.png",
+   "card": "7S",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "7S",
+    "suit_margin": 0.0323,
+    "rank_confidence": 0.9295,
+    "suit_confidence": 0.9319
+   }
+  },
+  {
+   "file": "20261015-154901_panel_player_5_ambiguous.png",
+   "card": "7S",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "7S",
+    "suit_margin": 0.0323,
+    "rank_confidence": 0.9295,
+    "suit_confidence": 0.9319
+   }
+  },
+  {
+   "file": "20261017-143353_panel_player_1_ambiguous.png",
+   "card": "7S",
+   "panel_row": "player_1",
+   "at_the_time": {
+    "best_card": "7S",
+    "suit_margin": 0.03,
+    "rank_confidence": 0.9316,
+    "suit_confidence": 0.9297
+   }
+  },
+  {
+   "file": "20261017-143408_panel_player_5_ambiguous.png",
+   "card": "7S",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "7S",
+    "suit_margin": 0.0348,
+    "rank_confidence": 0.9257,
+    "suit_confidence": 0.9353
+   }
+  },
+  {
+   "file": "20261017-143409_panel_player_5_ambiguous.png",
+   "card": "7S",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "7S",
+    "suit_margin": 0.0348,
+    "rank_confidence": 0.9257,
+    "suit_confidence": 0.9353
+   }
+  },
+  {
+   "file": "20261017-143411_panel_player_5_ambiguous.png",
+   "card": "7S",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "7S",
+    "suit_margin": 0.0348,
+    "rank_confidence": 0.9257,
+    "suit_confidence": 0.9353
+   }
+  },
+  {
+   "file": "20261017-143413_panel_player_5_ambiguous.png",
+   "card": "7S",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "7S",
+    "suit_margin": 0.0348,
+    "rank_confidence": 0.9257,
+    "suit_confidence": 0.9353
+   }
+  },
+  {
+   "file": "20261017-143420_panel_player_1_ambiguous.png",
+   "card": "7S",
+   "panel_row": "player_1",
+   "at_the_time": {
+    "best_card": "7S",
+    "suit_margin": 0.0305,
+    "rank_confidence": 0.9316,
+    "suit_confidence": 0.93
+   }
+  },
+  {
+   "file": "20261017-155445_panel_player_4_ambiguous.png",
+   "card": "7S",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "7S",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.9273,
+    "suit_confidence": 0.9328
+   }
+  },
+  {
+   "file": "20261017-155446_panel_player_2_ambiguous.png",
+   "card": "7S",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "7S",
+    "suit_margin": 0.0361,
+    "rank_confidence": 0.9291,
+    "suit_confidence": 0.9397
+   }
+  },
+  {
+   "file": "20261017-161012_panel_player_1_ambiguous.png",
+   "card": "7S",
+   "panel_row": "player_1",
+   "at_the_time": {
+    "best_card": "7S",
+    "suit_margin": 0.03,
+    "rank_confidence": 0.9316,
+    "suit_confidence": 0.9297
+   }
+  },
+  {
+   "file": "20261017-161017_panel_player_1_ambiguous.png",
+   "card": "7S",
+   "panel_row": "player_1",
+   "at_the_time": {
+    "best_card": "7S",
+    "suit_margin": 0.0297,
+    "rank_confidence": 0.9306,
+    "suit_confidence": 0.9314
+   }
+  },
+  {
+   "file": "20261017-161626_panel_player_2_ambiguous.png",
+   "card": "7S",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "7S",
+    "suit_margin": 0.0323,
+    "rank_confidence": 0.9295,
+    "suit_confidence": 0.9319
+   }
+  },
+  {
+   "file": "20261015-154757_panel_player_2_ambiguous.png",
+   "card": "8S",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "8S",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.9003,
+    "suit_confidence": 0.9328
+   }
+  },
+  {
+   "file": "20261015-154807_panel_player_3_ambiguous.png",
+   "card": "8S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "8S",
+    "suit_margin": 0.0305,
+    "rank_confidence": 0.9142,
+    "suit_confidence": 0.93
+   }
+  },
+  {
+   "file": "20261016-162453_panel_player_4_ambiguous.png",
+   "card": "8S",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "8S",
+    "suit_margin": 0.03,
+    "rank_confidence": 0.9141,
+    "suit_confidence": 0.9297
+   }
+  },
+  {
+   "file": "20261017-142212_panel_player_4_ambiguous.png",
+   "card": "8S",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "8S",
+    "suit_margin": 0.032,
+    "rank_confidence": 0.9112,
+    "suit_confidence": 0.9337
+   }
+  },
+  {
+   "file": "20261017-142214_panel_player_4_ambiguous.png",
+   "card": "8S",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "8S",
+    "suit_margin": 0.03,
+    "rank_confidence": 0.9141,
+    "suit_confidence": 0.9297
+   }
+  },
+  {
+   "file": "20261017-142215_panel_player_2_ambiguous.png",
+   "card": "8S",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "8S",
+    "suit_margin": 0.0354,
+    "rank_confidence": 0.9045,
+    "suit_confidence": 0.9395
+   }
+  },
+  {
+   "file": "20261017-142216_panel_player_2_ambiguous.png",
+   "card": "8S",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "8S",
+    "suit_margin": 0.0297,
+    "rank_confidence": 0.909,
+    "suit_confidence": 0.9314
+   }
+  },
+  {
+   "file": "20261017-142234_panel_player_3_ambiguous.png",
+   "card": "8S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "8S",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.9003,
+    "suit_confidence": 0.9328
+   }
+  },
+  {
+   "file": "20261017-142237_panel_player_3_ambiguous.png",
+   "card": "8S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "8S",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.9003,
+    "suit_confidence": 0.9328
+   }
+  },
+  {
+   "file": "20261017-143631_panel_player_3_ambiguous.png",
+   "card": "8S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "8S",
+    "suit_margin": 0.0331,
+    "rank_confidence": 0.9045,
+    "suit_confidence": 0.9322
+   }
+  },
+  {
+   "file": "20261017-155134_panel_player_4_ambiguous.png",
+   "card": "8S",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "8S",
+    "suit_margin": 0.03,
+    "rank_confidence": 0.9141,
+    "suit_confidence": 0.9297
+   }
+  },
+  {
+   "file": "20261017-155139_panel_player_4_ambiguous.png",
+   "card": "8S",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "8S",
+    "suit_margin": 0.0305,
+    "rank_confidence": 0.9142,
+    "suit_confidence": 0.93
+   }
+  },
+  {
+   "file": "20261017-155141_panel_player_4_ambiguous.png",
+   "card": "8S",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "8S",
+    "suit_margin": 0.0305,
+    "rank_confidence": 0.9142,
+    "suit_confidence": 0.93
+   }
+  },
+  {
+   "file": "20261017-155145_panel_player_4_ambiguous.png",
+   "card": "8S",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "8S",
+    "suit_margin": 0.0305,
+    "rank_confidence": 0.9142,
+    "suit_confidence": 0.93
+   }
+  },
+  {
+   "file": "20261017-161049_panel_player_1_ambiguous.png",
+   "card": "8S",
+   "panel_row": "player_1",
+   "at_the_time": {
+    "best_card": "8S",
+    "suit_margin": 0.03,
+    "rank_confidence": 0.9141,
+    "suit_confidence": 0.9297
+   }
+  },
+  {
+   "file": "20261017-161057_panel_player_4_ambiguous.png",
+   "card": "8S",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "8S",
+    "suit_margin": 0.0463,
+    "rank_confidence": 0.9057,
+    "suit_confidence": 0.9435
+   }
+  },
+  {
+   "file": "20261017-161105_panel_player_4_ambiguous.png",
+   "card": "8S",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "8S",
+    "suit_margin": 0.0463,
+    "rank_confidence": 0.9057,
+    "suit_confidence": 0.9435
+   }
+  },
+  {
+   "file": "20261017-161106_panel_player_4_ambiguous.png",
+   "card": "8S",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "8S",
+    "suit_margin": 0.0463,
+    "rank_confidence": 0.9057,
+    "suit_confidence": 0.9435
+   }
+  },
+  {
+   "file": "20261017-161107_panel_player_4_ambiguous.png",
+   "card": "8S",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "8S",
+    "suit_margin": 0.0463,
+    "rank_confidence": 0.9057,
+    "suit_confidence": 0.9435
+   }
+  },
+  {
+   "file": "20261017-161109_panel_player_4_ambiguous.png",
+   "card": "8S",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "8S",
+    "suit_margin": 0.0463,
+    "rank_confidence": 0.9057,
+    "suit_confidence": 0.9435
+   }
+  },
+  {
+   "file": "20261017-235128_panel_player_2_ambiguous.png",
+   "card": "8S",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "8S",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.9003,
+    "suit_confidence": 0.9328
+   }
+  },
+  {
+   "file": "20261015-155143_panel_player_3_ambiguous.png",
+   "card": "9S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "9S",
+    "suit_margin": 0.0297,
+    "rank_confidence": 0.8298,
+    "suit_confidence": 0.9314
+   }
+  },
+  {
+   "file": "20261015-155156_panel_player_3_ambiguous.png",
+   "card": "9S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "9S",
+    "suit_margin": 0.0297,
+    "rank_confidence": 0.8298,
+    "suit_confidence": 0.9314
+   }
+  },
+  {
+   "file": "20261015-155157_panel_player_3_ambiguous.png",
+   "card": "9S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "9S",
+    "suit_margin": 0.0345,
+    "rank_confidence": 0.8279,
+    "suit_confidence": 0.9337
+   }
+  },
+  {
+   "file": "20261015-155203_panel_player_5_ambiguous.png",
+   "card": "9S",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "9S",
+    "suit_margin": 0.03,
+    "rank_confidence": 0.8307,
+    "suit_confidence": 0.9297
+   }
+  },
+  {
+   "file": "20261015-155204_panel_player_5_ambiguous.png",
+   "card": "9S",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "9S",
+    "suit_margin": 0.03,
+    "rank_confidence": 0.8307,
+    "suit_confidence": 0.9297
+   }
+  },
+  {
+   "file": "20261016-152316_panel_player_3_ambiguous.png",
+   "card": "9S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "9S",
+    "suit_margin": 0.0297,
+    "rank_confidence": 0.8298,
+    "suit_confidence": 0.9314
+   }
+  },
+  {
+   "file": "20261017-142312_panel_player_4_ambiguous.png",
+   "card": "9S",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "9S",
+    "suit_margin": 0.0494,
+    "rank_confidence": 0.8353,
+    "suit_confidence": 0.9416
+   }
+  },
+  {
+   "file": "20261017-142313_panel_player_4_ambiguous.png",
+   "card": "9S",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "9S",
+    "suit_margin": 0.03,
+    "rank_confidence": 0.8307,
+    "suit_confidence": 0.9297
+   }
+  },
+  {
+   "file": "20261017-142315_panel_player_2_ambiguous.png",
+   "card": "9S",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "9S",
+    "suit_margin": 0.0293,
+    "rank_confidence": 0.8293,
+    "suit_confidence": 0.9309
+   }
+  },
+  {
+   "file": "20261017-155149_panel_player_4_ambiguous.png",
+   "card": "9S",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "9S",
+    "suit_margin": 0.0323,
+    "rank_confidence": 0.8358,
+    "suit_confidence": 0.9319
+   }
+  },
+  {
+   "file": "20261017-155150_panel_player_4_ambiguous.png",
+   "card": "9S",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "9S",
+    "suit_margin": 0.0421,
+    "rank_confidence": 0.8364,
+    "suit_confidence": 0.9366
+   }
+  },
+  {
+   "file": "20261017-161148_panel_player_3_ambiguous.png",
+   "card": "9S",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "9S",
+    "suit_margin": 0.0373,
+    "rank_confidence": 0.8333,
+    "suit_confidence": 0.9398
+   }
+  },
+  {
+   "file": "20261017-161149_panel_player_4_ambiguous.png",
+   "card": "9S",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "9S",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.8381,
+    "suit_confidence": 0.9328
+   }
+  },
+  {
+   "file": "20261017-161150_panel_player_4_ambiguous.png",
+   "card": "9S",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "9S",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.8381,
+    "suit_confidence": 0.9328
+   }
+  },
+  {
+   "file": "20261017-161158_panel_player_4_ambiguous.png",
+   "card": "9S",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "9S",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.8381,
+    "suit_confidence": 0.9328
+   }
+  },
+  {
+   "file": "20261017-161159_panel_player_4_ambiguous.png",
+   "card": "9S",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "9S",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.8381,
+    "suit_confidence": 0.9328
+   }
+  },
+  {
+   "file": "20261015-124324_panel_player_4_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0286,
+    "rank_confidence": 0.9081,
+    "suit_confidence": 0.9283
+   }
+  },
+  {
+   "file": "20261015-124325_panel_player_5_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0323,
+    "rank_confidence": 0.8897,
+    "suit_confidence": 0.9319
+   }
+  },
+  {
+   "file": "20261015-124326_panel_player_5_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0323,
+    "rank_confidence": 0.8897,
+    "suit_confidence": 0.9319
+   }
+  },
+  {
+   "file": "20261015-124330_panel_player_5_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0425,
+    "rank_confidence": 0.8708,
+    "suit_confidence": 0.9365
+   }
+  },
+  {
+   "file": "20261015-124331_panel_dealer_3_ambiguous.png",
+   "card": "AS",
+   "panel_row": "dealer_3",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0286,
+    "rank_confidence": 0.9072,
+    "suit_confidence": 0.9283
+   }
+  },
+  {
+   "file": "20261015-124332_panel_player_5_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0425,
+    "rank_confidence": 0.8708,
+    "suit_confidence": 0.9365
+   }
+  },
+  {
+   "file": "20261015-124333_panel_player_5_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0425,
+    "rank_confidence": 0.8708,
+    "suit_confidence": 0.9365
+   }
+  },
+  {
+   "file": "20261015-124402_panel_player_2_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0286,
+    "rank_confidence": 0.9081,
+    "suit_confidence": 0.9283
+   }
+  },
+  {
+   "file": "20261015-124413_panel_player_1_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_1",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.8672,
+    "suit_confidence": 0.9328
+   }
+  },
+  {
+   "file": "20261015-124417_panel_player_1_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_1",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.8672,
+    "suit_confidence": 0.9328
+   }
+  },
+  {
+   "file": "20261015-155005_panel_player_1_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_1",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0407,
+    "rank_confidence": 0.9093,
+    "suit_confidence": 0.9361
+   }
+  },
+  {
+   "file": "20261015-155258_panel_player_3_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.8662,
+    "suit_confidence": 0.9328
+   }
+  },
+  {
+   "file": "20261015-155313_panel_player_1_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_1",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0404,
+    "rank_confidence": 0.9091,
+    "suit_confidence": 0.9358
+   }
+  },
+  {
+   "file": "20261016-162449_panel_player_2_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0443,
+    "rank_confidence": 0.9069,
+    "suit_confidence": 0.9397
+   }
+  },
+  {
+   "file": "20261016-162502_panel_player_3_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0417,
+    "rank_confidence": 0.8708,
+    "suit_confidence": 0.9367
+   }
+  },
+  {
+   "file": "20261016-162510_panel_player_3_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0417,
+    "rank_confidence": 0.8708,
+    "suit_confidence": 0.9367
+   }
+  },
+  {
+   "file": "20261016-162514_panel_player_3_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0417,
+    "rank_confidence": 0.8708,
+    "suit_confidence": 0.9367
+   }
+  },
+  {
+   "file": "20261017-142307_panel_player_2_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0494,
+    "rank_confidence": 0.9105,
+    "suit_confidence": 0.9416
+   }
+  },
+  {
+   "file": "20261017-142315_panel_player_3_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0417,
+    "rank_confidence": 0.8708,
+    "suit_confidence": 0.9367
+   }
+  },
+  {
+   "file": "20261017-142329_panel_player_3_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0417,
+    "rank_confidence": 0.8708,
+    "suit_confidence": 0.9367
+   }
+  },
+  {
+   "file": "20261017-142330_panel_player_3_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0417,
+    "rank_confidence": 0.8708,
+    "suit_confidence": 0.9367
+   }
+  },
+  {
+   "file": "20261017-142333_panel_player_3_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0417,
+    "rank_confidence": 0.8708,
+    "suit_confidence": 0.9367
+   }
+  },
+  {
+   "file": "20261017-142335_panel_player_3_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0417,
+    "rank_confidence": 0.8708,
+    "suit_confidence": 0.9367
+   }
+  },
+  {
+   "file": "20261017-142337_panel_player_3_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0417,
+    "rank_confidence": 0.8708,
+    "suit_confidence": 0.9367
+   }
+  },
+  {
+   "file": "20261017-143201_panel_player_4_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0286,
+    "rank_confidence": 0.9081,
+    "suit_confidence": 0.9283
+   }
+  },
+  {
+   "file": "20261017-143203_panel_player_4_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0286,
+    "rank_confidence": 0.9081,
+    "suit_confidence": 0.9283
+   }
+  },
+  {
+   "file": "20261017-143204_panel_player_2_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0297,
+    "rank_confidence": 0.9085,
+    "suit_confidence": 0.9314
+   }
+  },
+  {
+   "file": "20261017-143300_panel_player_4_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0439,
+    "rank_confidence": 0.9064,
+    "suit_confidence": 0.9404
+   }
+  },
+  {
+   "file": "20261017-143301_panel_player_4_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0286,
+    "rank_confidence": 0.9081,
+    "suit_confidence": 0.9283
+   }
+  },
+  {
+   "file": "20261017-143304_panel_player_3_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.8666,
+    "suit_confidence": 0.9328
+   }
+  },
+  {
+   "file": "20261017-143307_panel_player_3_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.8666,
+    "suit_confidence": 0.9328
+   }
+  },
+  {
+   "file": "20261017-143310_panel_player_3_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.8666,
+    "suit_confidence": 0.9328
+   }
+  },
+  {
+   "file": "20261017-143314_panel_player_3_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.8666,
+    "suit_confidence": 0.9328
+   }
+  },
+  {
+   "file": "20261017-143322_panel_player_3_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.8666,
+    "suit_confidence": 0.9328
+   }
+  },
+  {
+   "file": "20261017-155128_panel_player_2_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0286,
+    "rank_confidence": 0.9081,
+    "suit_confidence": 0.9283
+   }
+  },
+  {
+   "file": "20261017-155135_panel_player_1_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_1",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.8672,
+    "suit_confidence": 0.9328
+   }
+  },
+  {
+   "file": "20261017-161020_panel_player_3_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0425,
+    "rank_confidence": 0.8708,
+    "suit_confidence": 0.9365
+   }
+  },
+  {
+   "file": "20261017-161025_panel_player_3_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0425,
+    "rank_confidence": 0.8708,
+    "suit_confidence": 0.9365
+   }
+  },
+  {
+   "file": "20261017-161203_panel_player_2_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0286,
+    "rank_confidence": 0.9081,
+    "suit_confidence": 0.9283
+   }
+  },
+  {
+   "file": "20261017-235300_panel_player_1_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_1",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0286,
+    "rank_confidence": 0.9081,
+    "suit_confidence": 0.9283
+   }
+  },
+  {
+   "file": "20261017-235407_panel_player_1_ambiguous.png",
+   "card": "AS",
+   "panel_row": "player_1",
+   "at_the_time": {
+    "best_card": "AS",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.8672,
+    "suit_confidence": 0.9328
+   }
+  },
+  {
+   "file": "20261015-124325_panel_player_2_ambiguous.png",
+   "card": "JS",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "JS",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.9141,
+    "suit_confidence": 0.9328
+   }
+  },
+  {
+   "file": "20261015-124331_panel_dealer_2_ambiguous.png",
+   "card": "JS",
+   "panel_row": "dealer_2",
+   "at_the_time": {
+    "best_card": "JS",
+    "suit_margin": 0.0294,
+    "rank_confidence": 0.9271,
+    "suit_confidence": 0.929
+   }
+  },
+  {
+   "file": "20261015-155250_panel_player_1_ambiguous.png",
+   "card": "JS",
+   "panel_row": "player_1",
+   "at_the_time": {
+    "best_card": "JS",
+    "suit_margin": 0.03,
+    "rank_confidence": 0.9268,
+    "suit_confidence": 0.9297
+   }
+  },
+  {
+   "file": "20261015-155313_panel_player_2_ambiguous.png",
+   "card": "JS",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "JS",
+    "suit_margin": 0.0323,
+    "rank_confidence": 0.9112,
+    "suit_confidence": 0.9319
+   }
+  },
+  {
+   "file": "20261015-155415_panel_player_2_ambiguous.png",
+   "card": "JS",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "JS",
+    "suit_margin": 0.0297,
+    "rank_confidence": 0.928,
+    "suit_confidence": 0.9314
+   }
+  },
+  {
+   "file": "20261015-160020_panel_player_4_ambiguous.png",
+   "card": "JS",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "JS",
+    "suit_margin": 0.0421,
+    "rank_confidence": 0.9118,
+    "suit_confidence": 0.9366
+   }
+  },
+  {
+   "file": "20261016-162352_panel_player_1_ambiguous.png",
+   "card": "JS",
+   "panel_row": "player_1",
+   "at_the_time": {
+    "best_card": "JS",
+    "suit_margin": 0.03,
+    "rank_confidence": 0.9268,
+    "suit_confidence": 0.9297
+   }
+  },
+  {
+   "file": "20261016-162401_panel_player_3_ambiguous.png",
+   "card": "JS",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "JS",
+    "suit_margin": 0.0336,
+    "rank_confidence": 0.9394,
+    "suit_confidence": 0.9346
+   }
+  },
+  {
+   "file": "20261016-162407_panel_player_3_ambiguous.png",
+   "card": "JS",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "JS",
+    "suit_margin": 0.0336,
+    "rank_confidence": 0.9394,
+    "suit_confidence": 0.9346
+   }
+  },
+  {
+   "file": "20261016-162414_panel_player_3_ambiguous.png",
+   "card": "JS",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "JS",
+    "suit_margin": 0.0336,
+    "rank_confidence": 0.9394,
+    "suit_confidence": 0.9346
+   }
+  },
+  {
+   "file": "20261016-162415_panel_player_2_ambiguous.png",
+   "card": "JS",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "JS",
+    "suit_margin": 0.0341,
+    "rank_confidence": 0.9209,
+    "suit_confidence": 0.9347
+   }
+  },
+  {
+   "file": "20261016-162422_panel_player_3_ambiguous.png",
+   "card": "JS",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "JS",
+    "suit_margin": 0.0341,
+    "rank_confidence": 0.9209,
+    "suit_confidence": 0.9347
+   }
+  },
+  {
+   "file": "20261017-143253_panel_player_1_ambiguous.png",
+   "card": "JS",
+   "panel_row": "player_1",
+   "at_the_time": {
+    "best_card": "JS",
+    "suit_margin": 0.03,
+    "rank_confidence": 0.9268,
+    "suit_confidence": 0.9297
+   }
+  },
+  {
+   "file": "20261017-143304_panel_player_4_ambiguous.png",
+   "card": "JS",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "JS",
+    "suit_margin": 0.0463,
+    "rank_confidence": 0.9127,
+    "suit_confidence": 0.9435
+   }
+  },
+  {
+   "file": "20261017-143308_panel_player_4_ambiguous.png",
+   "card": "JS",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "JS",
+    "suit_margin": 0.0463,
+    "rank_confidence": 0.9127,
+    "suit_confidence": 0.9435
+   }
+  },
+  {
+   "file": "20261017-143310_panel_player_4_ambiguous.png",
+   "card": "JS",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "JS",
+    "suit_margin": 0.0463,
+    "rank_confidence": 0.9127,
+    "suit_confidence": 0.9435
+   }
+  },
+  {
+   "file": "20261017-143313_panel_player_4_ambiguous.png",
+   "card": "JS",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "JS",
+    "suit_margin": 0.0463,
+    "rank_confidence": 0.9127,
+    "suit_confidence": 0.9435
+   }
+  },
+  {
+   "file": "20261017-143316_panel_player_4_ambiguous.png",
+   "card": "JS",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "JS",
+    "suit_margin": 0.0463,
+    "rank_confidence": 0.9127,
+    "suit_confidence": 0.9435
+   }
+  },
+  {
+   "file": "20261017-143324_panel_player_5_ambiguous.png",
+   "card": "JS",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "JS",
+    "suit_margin": 0.0337,
+    "rank_confidence": 0.9377,
+    "suit_confidence": 0.9334
+   }
+  },
+  {
+   "file": "20261015-121802_panel_player_2_ambiguous.png",
+   "card": "KS",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "KS",
+    "suit_margin": 0.0284,
+    "rank_confidence": 0.84,
+    "suit_confidence": 0.9285
+   }
+  },
+  {
+   "file": "20261015-154939_panel_player_2_ambiguous.png",
+   "card": "KS",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "KS",
+    "suit_margin": 0.0284,
+    "rank_confidence": 0.84,
+    "suit_confidence": 0.9285
+   }
+  },
+  {
+   "file": "20261015-154946_panel_player_1_ambiguous.png",
+   "card": "KS",
+   "panel_row": "player_1",
+   "at_the_time": {
+    "best_card": "KS",
+    "suit_margin": 0.0317,
+    "rank_confidence": 0.8909,
+    "suit_confidence": 0.9325
+   }
+  },
+  {
+   "file": "20261015-155003_panel_player_1_ambiguous.png",
+   "card": "KS",
+   "panel_row": "player_1",
+   "at_the_time": {
+    "best_card": "KS",
+    "suit_margin": 0.0288,
+    "rank_confidence": 0.8384,
+    "suit_confidence": 0.928
+   }
+  },
+  {
+   "file": "20261015-155005_panel_player_2_ambiguous.png",
+   "card": "KS",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "KS",
+    "suit_margin": 0.0284,
+    "rank_confidence": 0.84,
+    "suit_confidence": 0.9285
+   }
+  },
+  {
+   "file": "20261015-155456_panel_player_1_ambiguous.png",
+   "card": "KS",
+   "panel_row": "player_1",
+   "at_the_time": {
+    "best_card": "KS",
+    "suit_margin": 0.0284,
+    "rank_confidence": 0.84,
+    "suit_confidence": 0.9285
+   }
+  },
+  {
+   "file": "20261015-155457_panel_player_1_ambiguous.png",
+   "card": "KS",
+   "panel_row": "player_1",
+   "at_the_time": {
+    "best_card": "KS",
+    "suit_margin": 0.0405,
+    "rank_confidence": 0.8502,
+    "suit_confidence": 0.9389
+   }
+  },
+  {
+   "file": "20261015-155459_panel_player_3_ambiguous.png",
+   "card": "KS",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "KS",
+    "suit_margin": 0.033,
+    "rank_confidence": 0.8823,
+    "suit_confidence": 0.934
+   }
+  },
+  {
+   "file": "20261016-151437_panel_player_3_ambiguous.png",
+   "card": "KS",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "KS",
+    "suit_margin": 0.0284,
+    "rank_confidence": 0.84,
+    "suit_confidence": 0.9285
+   }
+  },
+  {
+   "file": "20261016-151439_panel_player_3_ambiguous.png",
+   "card": "KS",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "KS",
+    "suit_margin": 0.0284,
+    "rank_confidence": 0.84,
+    "suit_confidence": 0.9285
+   }
+  },
+  {
+   "file": "20261016-151440_panel_player_1_ambiguous.png",
+   "card": "KS",
+   "panel_row": "player_1",
+   "at_the_time": {
+    "best_card": "KS",
+    "suit_margin": 0.0314,
+    "rank_confidence": 0.8736,
+    "suit_confidence": 0.9361
+   }
+  },
+  {
+   "file": "20261016-151441_panel_player_1_ambiguous.png",
+   "card": "KS",
+   "panel_row": "player_1",
+   "at_the_time": {
+    "best_card": "KS",
+    "suit_margin": 0.0293,
+    "rank_confidence": 0.8811,
+    "suit_confidence": 0.9309
+   }
+  },
+  {
+   "file": "20261015-154807_panel_player_2_ambiguous.png",
+   "card": "QS",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "QS",
+    "suit_margin": 0.0323,
+    "rank_confidence": 0.8926,
+    "suit_confidence": 0.9319
+   }
+  },
+  {
+   "file": "20261015-160013_panel_player_2_ambiguous.png",
+   "card": "QS",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "QS",
+    "suit_margin": 0.0297,
+    "rank_confidence": 0.8745,
+    "suit_confidence": 0.9314
+   }
+  },
+  {
+   "file": "20261016-162615_panel_player_3_ambiguous.png",
+   "card": "QS",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "QS",
+    "suit_margin": 0.0297,
+    "rank_confidence": 0.8745,
+    "suit_confidence": 0.9314
+   }
+  },
+  {
+   "file": "20261016-162618_panel_player_3_ambiguous.png",
+   "card": "QS",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "QS",
+    "suit_margin": 0.0293,
+    "rank_confidence": 0.8736,
+    "suit_confidence": 0.9309
+   }
+  },
+  {
+   "file": "20261017-142331_panel_player_5_ambiguous.png",
+   "card": "QS",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "QS",
+    "suit_margin": 0.0346,
+    "rank_confidence": 0.8747,
+    "suit_confidence": 0.9346
+   }
+  },
+  {
+   "file": "20261017-142333_panel_player_4_ambiguous.png",
+   "card": "QS",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "QS",
+    "suit_margin": 0.0421,
+    "rank_confidence": 0.8926,
+    "suit_confidence": 0.9366
+   }
+  },
+  {
+   "file": "20261017-142335_panel_player_4_ambiguous.png",
+   "card": "QS",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "QS",
+    "suit_margin": 0.0421,
+    "rank_confidence": 0.8926,
+    "suit_confidence": 0.9366
+   }
+  },
+  {
+   "file": "20261017-143359_panel_player_4_ambiguous.png",
+   "card": "QS",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "QS",
+    "suit_margin": 0.0292,
+    "rank_confidence": 0.8772,
+    "suit_confidence": 0.9285
+   }
+  },
+  {
+   "file": "20261017-143400_panel_player_4_ambiguous.png",
+   "card": "QS",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "QS",
+    "suit_margin": 0.03,
+    "rank_confidence": 0.8768,
+    "suit_confidence": 0.9297
+   }
+  },
+  {
+   "file": "20261017-143401_panel_player_4_ambiguous.png",
+   "card": "QS",
+   "panel_row": "player_4",
+   "at_the_time": {
+    "best_card": "QS",
+    "suit_margin": 0.039,
+    "rank_confidence": 0.8769,
+    "suit_confidence": 0.93
+   }
+  },
+  {
+   "file": "20261017-143406_panel_player_3_ambiguous.png",
+   "card": "QS",
+   "panel_row": "player_3",
+   "at_the_time": {
+    "best_card": "QS",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.8862,
+    "suit_confidence": 0.9328
+   }
+  },
+  {
+   "file": "20261017-143421_panel_player_5_ambiguous.png",
+   "card": "QS",
+   "panel_row": "player_5",
+   "at_the_time": {
+    "best_card": "QS",
+    "suit_margin": 0.0323,
+    "rank_confidence": 0.8926,
+    "suit_confidence": 0.9319
+   }
+  },
+  {
+   "file": "20261017-155337_panel_player_2_ambiguous.png",
+   "card": "QS",
+   "panel_row": "player_2",
+   "at_the_time": {
+    "best_card": "QS",
+    "suit_margin": 0.03,
+    "rank_confidence": 0.8764,
+    "suit_confidence": 0.9297
+   }
+  },
+  {
+   "file": "20261017-155342_panel_player_1_ambiguous.png",
+   "card": "QS",
+   "panel_row": "player_1",
+   "at_the_time": {
+    "best_card": "QS",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.8866,
+    "suit_confidence": 0.9328
+   }
+  },
+  {
+   "file": "20261017-155353_panel_player_1_ambiguous.png",
+   "card": "QS",
+   "panel_row": "player_1",
+   "at_the_time": {
+    "best_card": "QS",
+    "suit_margin": 0.0316,
+    "rank_confidence": 0.8866,
+    "suit_confidence": 0.9328
+   }
+  }
+ ]
+}

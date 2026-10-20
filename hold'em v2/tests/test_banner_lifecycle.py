@@ -423,9 +423,10 @@ def test_the_voice_is_silenced_even_if_the_rest_of_stop_fails(application,
     assert_hidden(application)
 
 
-# -- Teach / Correct Scenario and a paused tracker --------------------------------
+# -- Teach / Correct Scenario, the tracker's own windows and a paused tracker -----------------------------
 
 def _pause(application):
+    """The game leaves the front for real: the tracker's gate commits INACTIVE and the window is told."""
     import window_focus
     application.tracker.focus.state = window_focus.GAME_INACTIVE
     application._show_focus(window_focus.GAME_INACTIVE)
@@ -451,8 +452,29 @@ def test_teach_opens_on_the_live_scenario_while_the_game_is_active(application, 
     assert opened[0]["is_current"]()[0] is True
 
 
-def test_teach_is_refused_while_the_game_is_paused(application, monkeypatch):
-    """The banner is down while paused, so the last update is not what is on screen: nothing is captured."""
+def test_teach_works_with_the_tracker_window_in_front(application, monkeypatch):
+    """Pressing Teach puts the tracker's window in front. That must not pause the tracker or refuse the button."""
+    import window_focus as wf
+    opened, told = _teach_recorder(application, monkeypatch)
+    begin(application)
+    deliver(application, se.PLAY)
+    clock = {"now": 1000.0}
+    titles = iter(["Casino - Google Chrome"] + ["Poker Hand Tracker"] * 6)
+    application.tracker.focus = wf.FocusGate(
+        "Casino - Google Chrome", read_title=lambda: next(titles), clock=lambda: clock["now"],
+        own_process=lambda: False, grace_seconds=3.0)
+    application.tracker.focus.observe()
+    for _ in range(6):
+        clock["now"] += 5.0                                    # well past the startup grace
+        assert application.tracker.focus.observe() is None
+    assert application.tracker.focus.paused is False
+    application.teach_scenario()
+    assert len(opened) == 1 and told == []
+    assert opened[0]["is_current"]() == (True, "")             # Save & Test and Activate ask this
+
+
+def test_teach_is_refused_after_the_game_has_left_the_front_until_a_fresh_update(application, monkeypatch):
+    """The banner is down and the last update predates the pause, so it is not what is on the screen."""
     import app as app_module
     opened, told = _teach_recorder(application, monkeypatch)
     begin(application)
@@ -460,9 +482,13 @@ def test_teach_is_refused_while_the_game_is_paused(application, monkeypatch):
     _pause(application)
     application.teach_scenario()
     assert opened == [] and told == [app_module.GAME_PAUSED_TEACH]
+    application.tracker.focus.state = "GAME_ACTIVE"
+    deliver(application, se.PLAY)                              # the game is back and the tracker has reported
+    application.teach_scenario()
+    assert len(opened) == 1
 
 
-def test_a_teach_window_goes_stale_when_the_game_is_paused_after_it_opens(application, monkeypatch):
+def test_a_teach_window_goes_stale_when_the_game_leaves_the_front_after_it_opens(application, monkeypatch):
     import app as app_module
     opened, _ = _teach_recorder(application, monkeypatch)
     begin(application)
@@ -471,3 +497,29 @@ def test_a_teach_window_goes_stale_when_the_game_is_paused_after_it_opens(applic
     assert opened[0]["is_current"]()[0] is True
     _pause(application)
     assert opened[0]["is_current"]() == (False, app_module.GAME_PAUSED_TEACH)
+    application.tracker.focus.state = "GAME_ACTIVE"
+    deliver(application, se.PLAY)                              # same round, fresh update
+    assert opened[0]["is_current"]()[0] is True
+
+
+def test_a_teach_window_is_refused_once_the_round_has_changed(application, monkeypatch):
+    opened, _ = _teach_recorder(application, monkeypatch)
+    begin(application)
+    deliver(application, se.PLAY, round_id=1)
+    application.teach_scenario()
+    assert opened[0]["is_current"]()[0] is True
+    deliver(application, se.PLAY, round_id=2)
+    ok, why = opened[0]["is_current"]()
+    assert ok is False and "round has changed" in why
+
+
+def test_a_new_session_clears_the_stale_flag(application, monkeypatch):
+    opened, told = _teach_recorder(application, monkeypatch)
+    begin(application)
+    deliver(application, se.PLAY)
+    _pause(application)
+    end(application)
+    begin(application)
+    deliver(application, se.PLAY)
+    application.teach_scenario()
+    assert len(opened) == 1 and told == []

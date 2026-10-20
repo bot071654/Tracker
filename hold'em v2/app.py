@@ -31,8 +31,11 @@ from recognition import result_panel, table_layout
 import window_focus
 from recognition.dealer_watch import describe_slot
 from recognition.card_recognizer import TemplatesMissingError, template_status
+from tick_timing import TimingSummary
 from tracker import Tracker, card_status, derive_state, read_table
-from ui.ante_alert import SHOW, AnteAlertBanner, AnteAlertLogic, preround_decision
+import round_lifecycle
+from ui.ante_alert import (PENDING, READY, SHOW, UNKNOWN, AnteAlertBanner,
+                           AnteAlertLogic, preround_decision)
 from ui.decision_banner import DecisionBanner, spoken
 from voice.announcer import TRANSIENT, Announcer
 from voice.events import VoiceEvents
@@ -72,10 +75,10 @@ PAUSED_GREY = "#777777"
 ACTIVE_GREEN = "#0b6"
 GAME_ACTIVE_STATUS = "TRACKING ACTIVE — GAME ACTIVE"
 GAME_PAUSED_STATUS = "TRACKING PAUSED — GAME NOT ACTIVE"
-GAME_PAUSED_TEACH = ("Tracking is paused because the game is not the window in "
-                     "front, so the scenario on screen may be out of date. "
-                     "Bring the game back to the front, wait for a decision, "
-                     "then press Teach / Correct Scenario again.")
+GAME_PAUSED_TEACH = ("The game was out of the front while this scenario was on "
+                     "screen, so it may be out of date. Bring the game back "
+                     "to the front, wait for a decision, then press Teach / "
+                     "Correct Scenario again.")
 
 # STOPPED needs to read as unmistakably different from RUNNING at a glance -
 # text alone ("Status: STOPPED" vs "Status: RUNNING") was too easy to miss,
@@ -100,6 +103,7 @@ class App:
         self.card_vars = {}
         self.scenarios = scenario_rules.load()
         self.last_record = None       # the round that just finished
+        self._announced_results = set()   # (session, round, fingerprint) whose confirmed result was spoken
         self.layout_source = None     # where the last reading's boxes came from
         self.last_panels = {}         # what the result panels last showed
         self.debug_window = None      # the Live Recognition Debug window, when open
@@ -117,6 +121,13 @@ class App:
         # the round id alone cannot tell a correction captured before a restart
         # from one captured after it. The pair can.
         self.latest_payload = None
+        # True from the moment the game goes out of the front until the next
+        # update the tracker sends: until then latest_payload is from before
+        # the pause and says nothing about the round now on the screen.
+        self._payload_stale = False
+        # How long an update waits in the queue before the window shows it, and
+        # how long showing it takes. Measurement only (see tick_timing.py).
+        self._ui_summary = TimingSummary("UI_TIMING", every=20, slow_ms=500.0, slow_key="queue")
         self.teach_session = 0
         # Whether this window considers itself to be tracking. The decision
         # banner is an always-on-top frame with no title bar, so one left
@@ -843,6 +854,7 @@ class App:
         # the scenario that was on screen when it stopped is not one now.
         self.teach_session += 1
         self.latest_payload = None
+        self._payload_stale = False
         self._spoken_decision = None
         self.tracking = True
         self._tracker_seen_running = False
@@ -918,6 +930,7 @@ class App:
             # refused in the dialog, so a window left open cannot activate
             # against a hand that finished before the tracker was stopped.
             self.latest_payload = None
+            self._payload_stale = False
             self._refresh_voice_state()
             if self.ante_alert is not None:
                 self._apply_ante_event(self.ante_alert.reset())
@@ -960,7 +973,7 @@ class App:
                 "the two Scenarios windows.",
                 parent=self.root)
             return
-        if self.tracker.focus.paused:
+        if self._payload_stale:
             messagebox.showinfo("Teach / Correct Scenario", GAME_PAUSED_TEACH,
                                 parent=self.root)
             return
@@ -973,9 +986,8 @@ class App:
             return
 
         def still_current():
-            # A paused tracker is not feeding the window: the last update is
-            # from before the game left the front, and the banner is down.
-            if self.tracker.focus.paused:
+            # The last update is from before the game left the front.
+            if self._payload_stale:
                 return False, GAME_PAUSED_TEACH
             return snapshot.is_current(
                 self.teach_session,
@@ -1141,11 +1153,17 @@ class App:
                 # the same payload also feeds the decision banner, the voice
                 # and the debug window, and none of them wants a stale frame.
                 return
+            self._payload_stale = False
+            arrived = time.monotonic()
             self._show_reading(payload)
             self._update_ante_alert(payload)
             window = self.debug_window
             if window is not None and window.winfo_exists():
                 window.show(payload)
+            emitted = payload.get("emitted_mono")
+            if emitted is not None:
+                self._ui_summary.add({"queue": (arrived - emitted) * 1000.0,
+                                      "show": (time.monotonic() - arrived) * 1000.0})
         elif kind == "focus":
             self._show_focus(payload)
         elif kind == "saved":
@@ -1205,6 +1223,7 @@ class App:
             status = "RUNNING - WAITING FOR FIRST ROUND"
         else:
             status = "RUNNING - %s" % payload["state"]
+        status += round_lifecycle.status_suffix(payload.get("lifecycle"))
         if held:
             status += " (%d covered)" % len(held)
         self.set_status(status)
@@ -1240,30 +1259,67 @@ class App:
             _sourced(final.get("dealer_hand"), progress["dealer_hand"]))
 
         source = final if final.get("winner") else progress
-        if source["winner"]:
+        lifecycle = payload.get("lifecycle")
+        # Never a winner next to a source conflict, and never one source
+        # picked silently when the table and the panel name different winners.
+        override = round_lifecycle.winner_override(lifecycle, panels, progress, final)
+        if override:
+            self.winner_var.set(override)
+        elif source["winner"]:
             verdict = "%s wins" % source["winner"]
             if source["winner"] == "Tie":
                 verdict = "Tie"
             if source["qualified"] is False:
                 verdict += " (dealer does not qualify)"
-            verdict += "  (panel)" if source is final else "  (table)"
+            verdict += "  (panel)" if source is final else (
+                "  (table)" + round_lifecycle.winner_note(lifecycle))
             self.winner_var.set(verdict)
         else:
             self.winner_var.set(DASH)
-        self._show_panels(panels)
+        self._show_panels(panels, lifecycle)
 
         # Worked out by the tracker's Scenario Engine; shown, never recalculated.
-        self.scenario_panel.show(payload.get("scenario"))
+        self.scenario_panel.show(round_lifecycle.annotate(payload.get("scenario"),
+                                                          payload.get("lifecycle")))
         self.scenario_panel.show_action(payload.get("action"))
 
         # The voice gets the same payload the window just drew, plus the
         # progress already computed above - it evaluates nothing of its own.
         # This only queues; the speaking happens on the voice thread.
         self.voice_events.observe(payload, progress)
+        self._announce_round_outcome(payload)
         self._refresh_voice_state()
 
-    def _show_panels(self, panels):
-        """The result panel's two rows and how they fit the table."""
+    def _announce_round_outcome(self, payload):
+        """Say who won, once, and only when the casino's result panel confirmed it.
+
+        A winner calculated from the table's nine cards is not announced as a
+        result: while it is unconfirmed the decision wording says RESULT
+        PENDING, and when the panel contradicts the table it says it cannot
+        determine the result - never a winner. The sentence is the same one
+        that was spoken on save before; only the moment it becomes true moved.
+        """
+        lifecycle = payload.get("lifecycle")
+        if (not lifecycle or lifecycle.get("state") != round_lifecycle.COMPLETE
+                or lifecycle.get("result_status") != round_lifecycle.RESULT_CONFIRMED):
+            return
+        record = lifecycle.get("record")
+        key = (self.teach_session, lifecycle.get("round_id"), lifecycle.get("fingerprint"))
+        if not record or key in self._announced_results:
+            return
+        self._announced_results.add(key)
+        self._announce_confirmed_result(record)
+
+    def _announce_confirmed_result(self, record):
+        self.voice_events.announce_result(record)
+
+    def _show_panels(self, panels, lifecycle=None):
+        """The result panel's two rows and how they fit the table.
+
+        `lifecycle` is the round's own judgement of the panels (round_lifecycle.py). A round whose result the panel has
+        already confirmed is not in SOURCE CONFLICT because the panel's player row has gone back to the next deal's two
+        hole cards: that row is the next round arriving, and the line says so instead of calling it a conflict.
+        """
         if not hasattr(self, "panel_vars"):
             return
         sides = panels.get("sides") or {}
@@ -1287,7 +1343,9 @@ class App:
                     if verdict == "consistent"]
         waiting = [side for side, (verdict, _) in verdicts.items()
                    if verdict in ("pending", "mismatch")]
-        if conflicts:
+        if conflicts and (lifecycle or {}).get("result_status") == round_lifecycle.RESULT_CONFIRMED:
+            text, colour = "Result confirmed - the next deal's panel row is ignored", ""
+        elif conflicts:
             text, colour = "SOURCE CONFLICT: %s" % "; ".join(conflicts), "#b00020"
         elif agreeing or waiting:
             # Both halves are shown: a seat still waiting must not disappear
@@ -1362,9 +1420,66 @@ class App:
         if self.ante_alert is not None and self.ante_alert.showing:
             return
         scenario = payload.get("scenario") or {}
-        self._publish_decision(scenario.get("decision"),
-                               scenario.get("reason") or "",
-                               payload.get("round_id"))
+        # PLAY / DON'T PLAY are provisional while the round is in progress and
+        # not final until it is complete with a known result; WAIT is untouched.
+        key, note, final = round_lifecycle.present(scenario.get("decision"),
+                                                   payload.get("lifecycle"))
+        reason = scenario.get("reason") or ""
+        if note:
+            reason = "%s - %s" % (note, reason) if reason else note
+        # A decision shown once its round is already over asks nothing of the
+        # watcher: it is neither sounded nor spoken. (The provisional and the
+        # pending / unknown wording, which do say something, are.)
+        self._publish_decision(key, reason, payload.get("round_id"),
+                               **({"chime": False, "speak": False} if final else {}))
+
+    def _preround_ready(self, payload):
+        """Whether the round that just ended is finished with a CONFIRMED result.
+
+        The pre-round rules are about that round's result, so an empty-looking
+        table is not enough, and neither is a result the table merely
+        calculated: the tracker's lifecycle must say the round was complete
+        and the casino's own result panel confirmed it. A missing, unreadable
+        or late panel leaves it unconfirmed (pending, then unknown); a panel
+        that contradicts the table makes it unknown. A payload without a
+        lifecycle (older callers) is answered as it always was.
+        """
+        lifecycle = payload.get("lifecycle")
+        if lifecycle is None:
+            return READY, ""
+        previous = lifecycle.get("previous")
+        if previous is None or not previous.get("complete"):
+            return PENDING, "the round has not been confirmed finished"
+        status = previous.get("result_status")
+        if status == round_lifecycle.RESULT_CONFIRMED:
+            return READY, ""
+        if status == round_lifecycle.RESULT_CONFLICT:
+            return UNKNOWN, ("Unable to determine result: the table and the "
+                             "casino's result panel disagree")
+        return PENDING, ("the finished round's result has not been confirmed "
+                         "by the casino's result panel")
+
+    def _preround_key(self, payload):
+        """Which finished round the next-round alert is about, for once-per-round."""
+        lifecycle = payload.get("lifecycle")
+        if lifecycle is None:
+            return None
+        previous = lifecycle.get("previous") or {}
+        return (self.teach_session, previous.get("round_id"))
+
+    def _preround_for(self, payload):
+        """(action, reason) from the pre-round rules, about the round that just finished."""
+        lifecycle = payload.get("lifecycle")
+        previous = (lifecycle or {}).get("previous") or {}
+        record = previous.get("record")
+        if lifecycle is None or not record:
+            return preround_decision(self.scenarios, self.last_record, self.history)
+        # That round's own record, not whichever hand was stored last; the
+        # history behind it is the rounds recorded before it.
+        fingerprint = record.get("hand_fingerprint")
+        history = [record] + [row for row in self.history
+                              if row.get("hand_fingerprint") != fingerprint]
+        return preround_decision(self.scenarios, record, history)
 
     def _update_ante_alert(self, payload):
         """Show or hide the ANTE alert for this update. Never touches the game."""
@@ -1376,7 +1491,9 @@ class App:
             return
         event = self.ante_alert.observe(
             payload.get("state"), payload.get("seen"),
-            lambda: preround_decision(self.scenarios, self.last_record, self.history))
+            lambda: self._preround_for(payload),
+            ready=lambda: self._preround_ready(payload),
+            key=self._preround_key(payload))
         self._apply_ante_event(event)
         self._show_engine_decision(payload)
 
@@ -1390,7 +1507,8 @@ class App:
         else:
             self.ante_banner.hide()
 
-    def _publish_decision(self, decision, reason="", round_id=None):
+    def _publish_decision(self, decision, reason="", round_id=None, chime=True,
+                          speak=True):
         """The one place a decision reaches the screen and the voice.
 
         Both consume the same `decision` argument, in this order, in this
@@ -1414,15 +1532,18 @@ class App:
             # because the banner is the thing left on screen and must be able
             # to refuse without trusting its caller.
             return False
-        changed = self.decision_banner.show(decision, reason, round_id)
+        # Only a silent show is spelled out: sounding is the banner's default.
+        changed = self.decision_banner.show(decision, reason, round_id,
+                                            **({} if chime else {"chime": False}))
         if changed:
             logger.info("[DECISION] canonical=%s round=%s", decision, round_id)
             logger.info("[BANNER] displaying=%s",
                         self.decision_banner.text or "(nothing)")
-        self._announce_decision(decision, changed, round_id)
+        self._announce_decision(decision, changed, round_id,
+                                **({} if speak else {"speak": False}))
         return changed
 
-    def _announce_decision(self, decision, changed, round_id):
+    def _announce_decision(self, decision, changed, round_id, speak=True):
         """Say the decision the banner has just put on screen. Display only.
 
         Nothing here works anything out. `decision` is the value the banner was
@@ -1444,6 +1565,10 @@ class App:
         see Announcer._should_speak.
         """
         if not changed:
+            return
+        if not speak:
+            logger.info("[VOICE] decision=%s is final for a finished round "
+                        "(round %s) - not announced", decision, round_id)
             return
         phrase = spoken(decision)
         if decision is None or not phrase:
@@ -1521,6 +1646,7 @@ class App:
         if not self.tracking:
             return
         if state == window_focus.GAME_INACTIVE:
+            self._payload_stale = True
             # The pre-round alert first, because it shares this banner and
             # keeps its own record of what is on it. Nothing polls that record
             # while the tracker is paused, so left alone it still says an ANTE
@@ -1575,9 +1701,10 @@ class App:
                record["player_hand"], record["dealer_hand"])
         )
         self.set_message(payload.get("excel_error") or "")
-        # The stored row is the same one the database got, so the voice cannot
-        # announce a result that disagrees with what was recorded.
-        self.voice_events.announce_result(record)
+        # Storing the hand is not confirming its result, so nothing is
+        # announced here: the outcome is spoken from the tracker's lifecycle,
+        # once the casino's result panel has confirmed it.
+        # See _announce_round_outcome.
 
     # -- shutdown ----------------------------------------------------------
 

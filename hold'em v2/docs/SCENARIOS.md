@@ -57,6 +57,66 @@ Note that `Scenario:` names the primary scenario, which for anything below a
 straight is the **group** — `PAIR`, `TWO_PAIR`, `THREE_OF_A_KIND` — while
 `Matched:` names the individual scenarios. See section 7.
 
+### When a decision stands: the round lifecycle
+
+A round is `WAITING` (no cards), `IN_PROGRESS` (cards are being dealt — the
+flop, turn and river arriving are steps of a round, not its end) or `COMPLETE`
+(all nine cards confirmed, the dealer's two included). A complete round has two
+different kinds of result, and they are never confused:
+
+* **calculated** — the winner worked out from the nine confirmed cards
+  (`table_result`). It is the tracker's own arithmetic, nothing more.
+* **confirmed** — the same winner, confirmed by the casino's own result panel:
+  both rows complete, current for this round, and agreeing with the table. A
+  missing, unreadable, partial or late panel does **not** confirm; the result
+  stays `unconfirmed` and is checked again on every poll, so a panel that
+  arrives late resolves it. A panel that contradicts the table makes the result
+  `conflict` — neither source is trusted and no winner is shown.
+
+Only a **complete** panel row can contradict a finished round. When the next
+hand is dealt the panel's player row drops back to two new hole cards while the
+card memory still holds the round that just finished; the tracker reports that
+as a conflict with the old table, but it is the next round arriving, so a
+confirmed result stays confirmed (the verification line says the next deal's row
+is ignored) and an unconfirmed one stays unconfirmed. A genuine contradiction —
+a complete row that disagrees — still makes the result `conflict`.
+
+How well the panel can confirm anything depends on the thumbnails being read.
+They are about 34 × 47 pixels, where a spade beats a club on the template match
+by less than the 0.05 the table's cards must clear, so the panel reader (and only
+it) lets the outline of the pip corroborate a black suit that won by at least
+0.02; where the outline disagrees or has no opinion the card is still refused
+(`card_recognizer.pip_shape`). The reader also reuses a thumbnail it has already
+read when the pixels differ by no more than a few grey levels
+(`PanelTracker.CACHE_TOLERANCE`): the live panel's pixels are never bit-identical,
+and an exact-match cache used the whole reading budget on the same two
+thumbnails every poll, so the dealer's row was never read. The saved real
+thumbnails behind both findings are `tests/fixtures/panel_thumbnails`;
+`python tools/evaluate_panel_crops.py` reports how each reader treats them.
+
+The decision itself is unchanged — `round_lifecycle.py` only says how to
+present it:
+
+| Round | Scenario Engine says | Banner / panel shows | Voice |
+|---|---|---|---|
+| in progress | `PLAY` / `DON'T PLAY` | `LEANING PLAY` / `LEANING DON'T PLAY` — **provisional** | "Leaning play" / "Leaning don't play" |
+| complete, result unconfirmed | `PLAY` / `DON'T PLAY` | `RESULT PENDING` | "Result pending" |
+| complete, panel confirmed | `PLAY` / `DON'T PLAY` | `PLAY NOW` / `DON'T PLAY` — final | silent, no chime; the winner is spoken once if card reading is on |
+| complete, panel disagrees | `PLAY` / `DON'T PLAY` | `RESULT UNKNOWN` ("Unable to determine result") | "Unable to determine result" |
+| any | `WAIT` | `WAIT` | "Wait" |
+
+The pre-round `ANTE` / `SKIP` suggestion is made **only after the round that
+just ended is complete and its result is confirmed by the panel**, it is
+decided from *that round's own record*, and it is given **once per finished
+hand**: a stray card read, an empty poll or half of the next deal cannot make
+the same hand alert again, and neither can the pending or unknown notices
+repeat. An empty-looking table alone (a lost table, a window over it) or an
+unconfirmed result shows `RESULT PENDING`, and after 25 seconds without
+confirmation `RESULT UNKNOWN` — never a guessed `ANTE` or `SKIP`. Once the
+table has cleared, nothing can confirm that round any more (the panel tracker
+deliberately never hands one round's panel to the next), so that notice can
+only time out.
+
 ---
 
 ## 2. Pre-round rules

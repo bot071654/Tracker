@@ -6,10 +6,12 @@ only ever touches its own widgets on the main thread.
 
 import logging
 import os
+import queue
 import threading
 import time
 from datetime import datetime
 
+import cv2
 import numpy
 
 from capture.screen_capture import (
@@ -28,6 +30,8 @@ from recognition import result_panel, table_layout
 from recognition.live_diagnostics import LiveDiagnostics
 from recognition import dealer_crop, dealer_watch
 import window_focus
+from round_lifecycle import RoundLifecycle
+from tick_timing import TimingSummary
 from recognition.card_recognizer import (
     TemplatesMissingError, read_slot, undecided_half,
 )
@@ -47,6 +51,18 @@ DEALER_SLOTS = ["dealer_1", "dealer_2"]
 
 # Wait this long before retrying a hand that failed to store (e.g. database down).
 RETRY_SECONDS = 30
+
+# A card box counts as covered by one of the tracker's own windows when at least this much of it lies under one.
+OWN_WINDOW_COVER_FRACTION = 0.10
+# Dealer boxes remembered from an earlier layout are only reused while the board and the player's cards stand where they stood:
+# at least this many of them seen in both layouts, every one within these pixels (positions) and (sizes).
+DEALER_CARRY_MIN_ANCHORS = 4
+DEALER_CARRY_POSITION_PX = 6
+DEALER_CARRY_SIZE_PX = 8
+# Screen-change measurement (diagnostic only): the frame is shrunk to this size and compared poll to poll.
+SCREEN_PROBE_SIZE = (96, 54)
+SCREEN_STILL_DIFF = 0.05           # mean grey-level change below which two polls count as the same picture
+SCREEN_STILL_REPORT_POLLS = 25     # report when the picture has not changed for this many polls, then every 100 more
 
 
 def _have(cards, slots):
@@ -620,7 +636,40 @@ class CardMemory:
         return dict(self.cards)
 
 
+class _SaveWorker:
+    """One background thread that runs hand saves in order, so the polling loop never waits for the network.
+
+    It only runs the jobs it is given; what a save means (duplicate rules, retry back-off, the outbox, events) stays where it
+    always was, in Tracker._persist and the database layer.
+    """
+
+    def __init__(self):
+        self._jobs = queue.Queue()
+        self._thread = threading.Thread(target=self._run, name="tracker-save", daemon=True)
+        self._thread.start()
+
+    def submit(self, job):
+        self._jobs.put(job)
+
+    def _run(self):
+        while True:
+            job = self._jobs.get()
+            if job is None:
+                return
+            try:
+                job()
+            except Exception:  # noqa: BLE001 - one failed save must not end the worker
+                logger.exception("A hand save failed unexpectedly")
+
+    def close(self, timeout):
+        self._jobs.put(None)
+        self._thread.join(timeout=timeout)
+
+
 class Tracker:
+    # Hands are saved on a background thread. The test suite turns this off so a save has finished when the call returns.
+    ASYNC_SAVE = True
+
     """Background screen-reading loop. Pushes events onto the events queue."""
 
     def __init__(self, config, events):
@@ -629,6 +678,8 @@ class Tracker:
         self._thread = None
         self._stop = threading.Event()
         self._last_saved_fingerprint = None
+        # Round state / result for the update payload (round_lifecycle.py).
+        self._lifecycle = RoundLifecycle()
         self._last_state = None
         # Set once, the first time this session's very first poll already
         # finds a state past WAITING - a hand already under way before
@@ -647,6 +698,22 @@ class Tracker:
         self._layout_source = None
         self._layout_misses = 0        # polls in a row the table was not found
         self._layout_stale = False     # the remembered boxes now show non-card content
+        self._covered = False          # this poll: a tracker window is over the remembered boxes
+        self._flop_gone = 0            # polls in a row the whole flop has been off the table while memory holds one
+        # A1: this application's own visible windows, asked for on each poll. Tests replace it.
+        self._own_rects = window_focus.own_window_rects
+        self._covered_slots = frozenset()   # card slots lying under one of them this poll
+        self._current_rects = []
+        # A2: dealer boxes seen in an earlier layout, and the board/player boxes that proved where the table stood then.
+        self._dealer_memory = None
+        # B1: the one hand being saved in the background, if any: (fingerprint, generation).
+        self._saving = None
+        self._save_lock = threading.Lock()
+        self._save_worker = None
+        # B2: the previous poll's shrunken picture, and how long the picture has stood still.
+        self._screen_prev = None
+        self._screen_still = 0
+        self._screen_still_reported = 0
         self._dealer_note = {}         # last rejection logged per dealer slot
         self._status_note = {}         # last ambiguity logged per slot
         # The pixels each slot showed last poll, and what they were read as.
@@ -684,6 +751,12 @@ class Tracker:
         # whole poll rather than reading somebody else's screen. See
         # window_focus.py for what a window title can and cannot tell you.
         self.focus = window_focus.FocusGate(config.get("game_window_title"))
+        # Where each poll's time goes, summarised in the log (see tick_timing.py).
+        # Measurement only: nothing about how often or how the tracker reads changes.
+        self._tick_summary = TimingSummary(
+            "TICK_TIMING", every=int(config.get("tick_timing_every", 20)),
+            slow_ms=float(config.get("tick_slow_ms", 800)))
+        self._last_tick = None          # (start, end) on the monotonic clock
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -694,6 +767,7 @@ class Tracker:
         if self.is_running():
             return
         self._stop.clear()
+        self._lifecycle = RoundLifecycle()      # a new session follows no earlier round
         self._thread = threading.Thread(target=self._run, name="tracker", daemon=True)
         self._thread.start()
         logger.info("Tracker started")
@@ -703,6 +777,9 @@ class Tracker:
         if self._thread is not None:
             self._thread.join(timeout=3)
         self._thread = None
+        worker, self._save_worker = self._save_worker, None
+        if worker is not None:
+            worker.close(timeout=8.0)       # a hand being saved is given time to finish
         logger.info("Tracker stopped")
 
     # -- internals ---------------------------------------------------------
@@ -739,10 +816,13 @@ class Tracker:
                 self._emit("focus", moved)
             if self.focus.paused:
                 self._expire_layout()
+                self._last_tick = None  # the gap while paused is not a poll gap
                 self._stop.wait(interval)
                 continue
             try:
+                tick_started = time.monotonic()
                 self._tick()
+                self._record_tick(tick_started, time.monotonic())
             except TemplatesMissingError as exc:
                 logger.error("%s", exc)
                 self._emit("error", str(exc))
@@ -756,6 +836,37 @@ class Tracker:
             elapsed = time.time() - started
             self._stop.wait(max(0.1, interval - elapsed))
 
+    def _record_tick(self, started, ended):
+        """Hand this poll's durations to the timing summary. Never raises.
+
+        `period` is start to start of consecutive polls and `wait` the idle time
+        between one poll's end and the next one's start, so a poll that is slower
+        than the configured interval shows up as period above the interval with
+        wait at the minimum. The stage numbers are the ones _read_table and _tick
+        already measured for this poll.
+        """
+        try:
+            timing = self._timing
+            tick = (ended - started) * 1000.0
+            row = {"tick": tick, "capture": timing.get("capture"), "locate": timing.get("roi"),
+                   "read": timing.get("recognition"), "panel": timing.get("panel"),
+                   "fresh": float(len(timing.get("fresh") or ()))}
+            for key in ("screen_diff", "table_diff", "still"):
+                value = timing.get(key)
+                if value is not None:
+                    row[key] = float(value)
+            # What the four stages above do not account for: diagnostics, the dealer
+            # watch, the scenario engine and any hand being saved.
+            known = sum(row[name] or 0.0 for name in ("capture", "locate", "read", "panel"))
+            row["other"] = max(0.0, tick - known)
+            if self._last_tick is not None:
+                row["period"] = (started - self._last_tick[0]) * 1000.0
+                row["wait"] = (started - self._last_tick[1]) * 1000.0
+            self._last_tick = (started, ended)
+            self._tick_summary.add(row, label=self._layout_source or "none")
+        except Exception:  # noqa: BLE001 - measuring must never stop the loop
+            logger.debug("Could not record tick timing", exc_info=True)
+
     def _layout_max_misses(self):
         return int(self.config.get("layout_max_missed_polls", 5))
 
@@ -767,6 +878,94 @@ class Tracker:
         """
         if self._layout is not None:
             self._layout_misses = self._layout_max_misses()
+        # Whatever stood where before the game left the screen is no longer known to: dealer boxes remembered from then
+        # are not reused (the next layout that is found afresh starts the memory again).
+        self._forget_dealer_boxes("the game left the screen")
+
+    def _with_dealer_boxes(self, layout):
+        """`layout`, plus the dealer boxes of an earlier layout when the table is proven not to have moved.
+
+        The dealer's cards are only found while they are face up, so a layout formed earlier in a hand has no dealer boxes,
+        and one formed while something covers the table cannot be formed at all. Dealer boxes seen in an earlier layout are
+        therefore carried forward - but only when the board and the player's cards stand where they stood: at least
+        DEALER_CARRY_MIN_ANCHORS of them present in both layouts and every one of them within a few pixels. Anything else -
+        a table that moved or resized, too few boxes to tell, a lost layout - forgets the remembered boxes. Nothing carried
+        decides a result: the boxes are read like any other and a face-down or covered card there is simply not read.
+        """
+        regions = dict(layout["regions"])
+        anchors = {slot: regions[slot] for slot in CARD_SLOTS if slot not in DEALER_SLOTS and slot in regions}
+        fresh = {slot: regions[slot] for slot in DEALER_SLOTS if slot in regions}
+        memory = self._dealer_memory
+        proven = bool(memory) and self._anchors_match(memory["anchors"], anchors)
+        if memory and not proven:
+            self._forget_dealer_boxes("the table moved or cannot be matched to the earlier layout")
+            memory = None
+        boxes = dict(memory["boxes"]) if proven else {}
+        boxes.update(fresh)
+        if fresh:
+            self._dealer_memory = {"boxes": boxes, "anchors": anchors}
+        carried = sorted(slot for slot in boxes if slot not in fresh) if proven else []
+        if not carried:
+            return layout
+        regions.update({slot: boxes[slot] for slot in carried})
+        carried_layout = dict(layout)
+        carried_layout["regions"] = regions
+        carried_layout["carried"] = carried
+        return carried_layout
+
+    def _with_covered_boxes(self, layout):
+        """Keep the box of a card that a tracker window now hides, when the table is proven not to have moved.
+
+        A card under one of the tracker's own windows is blanked before the table is looked for, so a layout found afresh
+        does not contain it. Its box from the layout before is kept (and the slot then reads as covered, not as an empty
+        place): only for a slot that is under a window right now, and only when the boxes that are in both layouts stand
+        where they stood (the same proof the dealer boxes need).
+        """
+        previous = (self._layout or {}).get("regions") or {}
+        rects = self._current_rects
+        if not rects or not previous:
+            return layout
+        regions = dict(layout["regions"])
+        old_anchors = {slot: box for slot, box in previous.items() if slot not in DEALER_SLOTS}
+        new_anchors = {slot: box for slot, box in regions.items() if slot not in DEALER_SLOTS}
+        if not self._anchors_match(old_anchors, new_anchors):
+            return layout
+        hidden = [slot for slot, box in previous.items()
+                  if slot not in regions and window_focus.covered_fraction(box, rects) >= OWN_WINDOW_COVER_FRACTION]
+        if not hidden:
+            return layout
+        regions.update({slot: previous[slot] for slot in hidden})
+        kept = dict(layout)
+        kept["regions"] = regions
+        kept["carried"] = sorted(set(layout.get("carried") or ()) | set(hidden))
+        return kept
+
+    @staticmethod
+    def _anchors_match(old, new):
+        common = [slot for slot in old if slot in new]
+        if len(common) < DEALER_CARRY_MIN_ANCHORS:
+            return False
+        for slot in common:
+            a, b = old[slot], new[slot]
+            if (abs(a["left"] - b["left"]) > DEALER_CARRY_POSITION_PX
+                    or abs(a["top"] - b["top"]) > DEALER_CARRY_POSITION_PX
+                    or abs(a["width"] - b["width"]) > DEALER_CARRY_SIZE_PX
+                    or abs(a["height"] - b["height"]) > DEALER_CARRY_SIZE_PX):
+                return False
+        return True
+
+    def _forget_dealer_boxes(self, why):
+        """Drop the remembered dealer boxes, and any of them already placed in the layout being kept."""
+        had = self._dealer_memory is not None
+        self._dealer_memory = None
+        layout = self._layout
+        carried = (layout or {}).get("carried")
+        if carried:
+            regions = {slot: box for slot, box in layout["regions"].items() if slot not in carried}
+            self._layout = dict(layout, regions=regions, carried=[])
+            had = True
+        if had:
+            logger.info("Dealer boxes from an earlier layout are no longer used: %s", why)
 
     def _boxes_show_non_cards(self, frame, origin):
         """True when the remembered boxes hold something bright that is not a card.
@@ -781,6 +980,8 @@ class Tracker:
         regions = (self._layout or {}).get("regions") or {}
         images = {slot: crop(frame, region, origin)
                   for slot, region in regions.items() if slot in CARD_SLOTS}
+        if not images:
+            return False
         _, reads = read_table(self.config, images)
         return (any(read["present"] for read in reads.values())
                 and not any(read["confident"] for read in reads.values()))
@@ -795,7 +996,10 @@ class Tracker:
         the floor under both, for the frames before any layout has been found.
         """
         layout = table_layout.locate(frame, origin=origin)
+        self._covered = False
         if table_layout.looks_plausible(layout):
+            layout = self._with_dealer_boxes(layout)
+            layout = self._with_covered_boxes(layout)
             self._layout = layout
             self._layout_source = "dynamic"
             self._layout_misses = 0
@@ -809,21 +1013,41 @@ class Tracker:
             # they hold cards or nothing - and the calibrated boxes are no
             # better a place to look, so a stale layout reads nowhere.
             self._layout_misses += 1
-            stale = (self._layout_misses > self._layout_max_misses()
-                     and self._boxes_show_non_cards(frame, origin))
-            if stale and not self._layout_stale:
-                logger.info("Table not found for %d polls and the last good "
-                            "layout now shows non-card content; not reading "
-                            "from it", self._layout_misses)
-            self._layout_stale = stale
-            self._layout_source = "lost" if stale else "cached"
+            holding = bool(getattr(self.focus, "holding_own_window", False))
+            # Normally the boxes are only looked at once the table has been
+            # missing for more than the limit, so a hand sweeping across is read
+            # through. With a tracker window in front they are looked at from the
+            # first missed poll: that window is what is most likely over them, and
+            # waiting would let its pixels through the reader for those polls.
+            non_cards = ((holding or self._layout_misses > self._layout_max_misses())
+                         and self._boxes_show_non_cards(frame, origin))
+            if non_cards and holding:
+                # One of the tracker's own windows is in front, so the bright
+                # non-card content is most likely that window lying over the
+                # table, not proof that the table has gone. Nothing is read
+                # from the covered boxes this poll and nothing is fed to the
+                # card memory (see _tick), so neither the window's pixels nor
+                # a repeat of old readings becomes fresh data; the layout's
+                # staleness is left as it was. The hold is capped (see
+                # window_focus), after which the boxes are judged as below.
+                self._covered = True
+                self._layout_source = "covered"
+            else:
+                if non_cards and not self._layout_stale:
+                    logger.info("Table not found for %d polls and the last good "
+                                "layout now shows non-card content; not reading "
+                                "from it", self._layout_misses)
+                self._layout_stale = non_cards
+                if non_cards:
+                    self._forget_dealer_boxes("the table has gone")
+                self._layout_source = "lost" if non_cards else "cached"
         else:
             # Nothing found and nothing found before, so the calibrated boxes
             # are all that is left - and when there are none of those either,
             # say so rather than blaming a calibration that was never done.
             self._layout_source = ("calibrated" if self.config.get("regions")
                                    else "none")
-        if self._layout_source == "lost":
+        if self._layout_source in ("lost", "covered"):
             regions = {}
         else:
             regions = table_layout.merge(
@@ -838,9 +1062,84 @@ class Tracker:
         kept = ((self._layout or {}).get("regions") or {}
                 if self._layout_source in ("dynamic", "cached") else {})
         found = "this frame" if self._layout_source == "dynamic" else "last good layout"
-        self._region_sources = {slot: (found if slot in kept else "calibrated")
+        carried = set((self._layout or {}).get("carried") or ())
+        self._region_sources = {slot: ("carried from an earlier layout" if slot in carried
+                                       else found if slot in kept else "calibrated")
                                 for slot in regions}
         return regions
+
+    def _own_rects_now(self):
+        """This application's visible windows, or [] (off with config["exclude_own_windows"] = False). Never raises."""
+        if not self.config.get("exclude_own_windows", True):
+            return []
+        try:
+            return list(self._own_rects() or [])
+        except Exception:  # noqa: BLE001 - excluding windows is a refinement, never a reason to stop reading
+            logger.debug("Could not list the tracker's own windows", exc_info=True)
+            return []
+
+    @staticmethod
+    def _without_own_windows(frame, origin, rects):
+        """`frame` with the tracker's own windows blanked, or the same frame when there are none."""
+        if not rects:
+            return frame
+        blanked = frame.copy()
+        height, width = blanked.shape[:2]
+        for left, top, right, bottom in rects:
+            x0, x1 = max(0, left - origin[0]), min(width, right - origin[0])
+            y0, y1 = max(0, top - origin[1]), min(height, bottom - origin[1])
+            if x1 > x0 and y1 > y0:
+                blanked[y0:y1, x0:x1] = 0
+        return blanked
+
+    def _probe_screen(self, frame, origin, rects):
+        """Measure whether the captured picture is changing. Diagnostic only: nothing here reads or decides anything.
+
+        The frame is shrunk and compared with the previous poll's, with the tracker's own windows left out so that its own
+        redrawing does not count as the game moving. `screen_diff` is the whole picture, `table_diff` the part around the
+        known card boxes. Both are mean grey-level changes (0 is identical). `still` counts the polls in a row that have not
+        changed, and a long stand-still is reported once in the log, saying what the focus gate and the layout were doing.
+        """
+        try:
+            small = cv2.resize(frame, SCREEN_PROBE_SIZE, interpolation=cv2.INTER_AREA).astype("float32")
+            grey = small.mean(axis=2) if small.ndim == 3 else small
+            keep = numpy.ones(grey.shape, dtype=bool)
+            height, width = frame.shape[:2]
+            scale_x, scale_y = SCREEN_PROBE_SIZE[0] / float(width), SCREEN_PROBE_SIZE[1] / float(height)
+            for left, top, right, bottom in rects:
+                x0, x1 = int((left - origin[0]) * scale_x), int(numpy.ceil((right - origin[0]) * scale_x))
+                y0, y1 = int((top - origin[1]) * scale_y), int(numpy.ceil((bottom - origin[1]) * scale_y))
+                keep[max(0, y0):max(0, y1), max(0, x0):max(0, x1)] = False
+            table = numpy.zeros(grey.shape, dtype=bool)
+            for box in ((self._layout or {}).get("regions") or {}).values():
+                x0 = int((box["left"] - origin[0]) * scale_x)
+                x1 = int(numpy.ceil((box["left"] + box["width"] - origin[0]) * scale_x))
+                y0 = int((box["top"] - origin[1]) * scale_y)
+                y1 = int(numpy.ceil((box["top"] + box["height"] - origin[1]) * scale_y))
+                table[max(0, y0):max(0, y1), max(0, x0):max(0, x1)] = True
+            previous, self._screen_prev = self._screen_prev, (grey, keep)
+            if previous is None or previous[0].shape != grey.shape:
+                return
+            both = keep & previous[1]
+            change = numpy.abs(grey - previous[0])
+            screen_diff = float(change[both].mean()) if both.any() else None
+            inside = both & table
+            table_diff = float(change[inside].mean()) if inside.any() else None
+            self._timing["screen_diff"], self._timing["table_diff"] = screen_diff, table_diff
+            if screen_diff is not None and screen_diff < SCREEN_STILL_DIFF:
+                self._screen_still += 1
+            else:
+                self._screen_still, self._screen_still_reported = 0, 0
+            self._timing["still"] = self._screen_still
+            due = (SCREEN_STILL_REPORT_POLLS if not self._screen_still_reported
+                   else self._screen_still_reported + 100)
+            if self._screen_still >= due:
+                self._screen_still_reported = self._screen_still
+                logger.info("SCREEN_STILL the captured picture has not changed for %d polls | focus=%s layout=%s tracker "
+                            "windows over the screen=%d", self._screen_still, self.focus.state, self._layout_source,
+                            len(rects))
+        except Exception:  # noqa: BLE001 - measuring must never stop the loop
+            logger.debug("Could not measure screen change", exc_info=True)
 
     def _read_table(self):
         """Capture the screen, find the cards in it, and read them.
@@ -856,20 +1155,48 @@ class Tracker:
         origin = monitor_origin(monitor)
         captured = clock()
         self._frame = (frame, origin)
-        regions = self._locate(frame, origin)
+        rects = self._own_rects_now()
+        self._current_rects = rects
+        self._probe_screen(frame, origin, rects)
+        # What the tracker's own windows cover is not the table: those pixels are blanked before the table is looked for.
+        regions = self._locate(self._without_own_windows(frame, origin, rects), origin)
+        self._covered_slots = frozenset(
+            slot for slot, box in regions.items()
+            if window_focus.covered_fraction(box, rects) >= OWN_WINDOW_COVER_FRACTION)
+        for slot in self._covered_slots:
+            self._region_sources[slot] = "under a tracker window"
         located = clock()
+        if self._covered:
+            # A tracker window over the table: nothing is cropped, read or cached.
+            self._timing.update(capture=(captured - started) * 1000.0,
+                                roi=(located - captured) * 1000.0)
+            return {}, {}
         images = {slot: crop(frame, regions[slot], origin)
-                  for slot in CARD_SLOTS if slot in regions}
+                  for slot in CARD_SLOTS if slot in regions and slot not in self._covered_slots}
         cropped = clock()
         self._last_regions, self._last_images = regions, images
-        result = self._read_changed(images)
+        result = self._read_changed(images, self._covered_slots)
         self._timing.update(capture=(captured - started) * 1000.0,
                             roi=(located - captured) * 1000.0,
                             crop=(cropped - located) * 1000.0,
                             recognition=(clock() - cropped) * 1000.0)
         return result
 
-    def _read_changed(self, images):
+    @staticmethod
+    def _covered_read(slot):
+        """What a slot reports while one of the tracker's own windows is over it: a card is there, nothing was read.
+
+        Present, so the card memory does not take it for an empty table and clear the hand; no card and no confidence, so
+        it casts no vote. Memory keeps whatever it held for the slot (shown as HELD), exactly as for a card under the
+        dealer's hand.
+        """
+        read = {"present": True, "ratio": 0.0, "card": None, "confidence": 0.0, "confident": False,
+                "covered": True, "ms": 0.0}
+        if slot in DEALER_SLOTS:
+            read["dealer_face"] = None
+        return read
+
+    def _read_changed(self, images, covered=frozenset()):
         """Read the slots whose pixels have changed since the last poll.
 
         Recognising a card costs about 20ms and deciding that its pixels are
@@ -884,12 +1211,16 @@ class Tracker:
         poll, from the answer already worked out for those exact pixels.
         """
         fresh = {slot: images.get(slot) for slot in CARD_SLOTS
-                 if not self._unchanged(slot, images.get(slot))}
+                 if slot not in covered and not self._unchanged(slot, images.get(slot))}
         self._timing["fresh"] = set(fresh)
         cards, reads = read_table(self.config, fresh)
 
         for slot in CARD_SLOTS:
-            if slot in fresh:
+            if slot in covered:
+                # Not read, not cached, not voted: the saved crop and read stay what they were before the window arrived.
+                reads[slot] = self._covered_read(slot)
+                cards[slot] = None
+            elif slot in fresh:
                 self._last_crop[slot] = images.get(slot)
                 self._last_read[slot] = reads[slot]
             elif slot in self._last_read:
@@ -1056,6 +1387,21 @@ class Tracker:
                                "status": card_status(reads.get(slot), support,
                                                          card=self.memory.cards.get(slot))[0],
                                "readings": support[1]}
+            # The flop stays on the table for the whole hand; a card under the
+            # dealer's hand is one or two cards for a moment, never all three for
+            # several polls. When every flop slot has been bare that long, memory
+            # is holding the PREVIOUS hand: the next hand's hole cards may already
+            # be down but not yet readable, which keeps memory from starting a new
+            # round, and the held cards would go on deciding. They are not offered
+            # to the engine, so it waits for the table instead of repeating the
+            # last hand's decision. Memory itself is untouched.
+            holds_flop = any(self.memory.cards.get(slot) for slot in scenario_engine.FLOP_SLOTS)
+            flop_on_table = any((reads.get(slot) or {}).get("present")
+                                for slot in scenario_engine.FLOP_SLOTS)
+            self._flop_gone = self._flop_gone + 1 if (holds_flop and not flop_on_table) else 0
+            if self._flop_gone >= int(self.config.get("flop_gone_polls", 3)):
+                for slot in scenario_engine.FLOP_SLOTS:
+                    slots[slot] = {"card": None, "status": "EMPTY", "readings": 0}
             # The dealer's final hand needs the whole board confirmed; the
             # dealer's own two are taken as the tracker already vetted them.
             board_ready = not any(
@@ -1258,6 +1604,10 @@ class Tracker:
         self._timing = {}
         started = clock()
         seen, reads = self._read_table()
+        if self._covered:
+            # Nothing was read, so nothing is voted on, vetted, saved or sent:
+            # the window keeps what it last showed, as it does while paused.
+            return
 
         mark = clock()
         if self.config.get("latch_cards", True):
@@ -1306,6 +1656,8 @@ class Tracker:
         self._timing["total"] = (clock() - started) * 1000.0
         dealer = self._watch_dealer(reads, cards, state)
         scenario = self._run_scenario_engine(cards, reads)
+        # The panels' own per-poll evidence (already read above) is what confirms a finished round's result.
+        lifecycle = self._lifecycle.observe(self.memory.generation, state, cards, panels)
         # No automation: read-only. Kept in the payload as None, exactly the
         # value it already carried whenever automation was configured off.
         action = None
@@ -1324,6 +1676,8 @@ class Tracker:
             "diagnostics": diagnostics,
             "dealer": dealer,
             "scenario": scenario,
+            # Round state, result and what it means for the decision: see round_lifecycle.py.
+            "lifecycle": lifecycle,
             "action": action,
             # True only for the round tracking happened to start inside -
             # cards already on screen before the first poll, not dealt since.
@@ -1339,6 +1693,7 @@ class Tracker:
                          for slot in CARD_SLOTS},
             "timing": {key: value for key, value in self._timing.items() if key != "fresh"},
             "emitted_at": time.time(),
+            "emitted_mono": time.monotonic(),       # same clock the window measures delivery with
             # A slot the memory already holds is not "uncertain" - it is just
             # covered at this instant.
             "uncertain": [slot for slot in uncertain_slots(reads)
@@ -1401,6 +1756,9 @@ class Tracker:
             return
 
         fingerprint = record["hand_fingerprint"]
+        with self._save_lock:
+            if self._saving is not None:
+                return  # a hand is being saved in the background; this one waits (or is the same hand)
         if fingerprint == self._last_saved_fingerprint:
             return  # the same completed hand is still on screen
 
@@ -1448,27 +1806,56 @@ class Tracker:
         except Exception as exc:  # noqa: BLE001 - validation must never block a save
             logger.warning("Result validation failed: %s", exc)
 
+        generation = self.memory.generation
+        if not self._async_save():
+            self._persist(record, fingerprint, generation)
+            return
+        with self._save_lock:
+            self._saving = (fingerprint, generation)
+        if self._save_worker is None:
+            self._save_worker = _SaveWorker()
+        self._save_worker.submit(lambda: self._persist(record, fingerprint, generation))
+
+    def _async_save(self):
+        return bool(self.config.get("async_save", self.ASYNC_SAVE))
+
+    def _persist(self, record, fingerprint, generation):
+        """Store one completed hand. Runs on the save thread (or inline when saving is not asynchronous).
+
+        The rules are the ones the polling thread always applied, unchanged: a DatabaseError leaves the hand to be tried
+        again after RETRY_SECONDS (and the remote backend has already put it in the on-disk outbox where that applies); a
+        success - or the server calling it a duplicate - records the fingerprint and the round so the same hand is not
+        stored twice.
+        """
         try:
-            inserted, row = db.insert_hand(record)
-        except db.DatabaseError as exc:
-            logger.error("Database error: %s", exc)
+            try:
+                inserted, row = db.insert_hand(record)
+            except db.DatabaseError as exc:
+                logger.error("Database error: %s", exc)
+                self._pending = (fingerprint, time.time() + RETRY_SECONDS)
+                self._emit("error", "Database error: %s" % exc)
+                return
+
+            self._pending = None
+            self._last_saved_fingerprint = fingerprint
+            self._saved_generation = generation
+
+            if not inserted:
+                self._emit("duplicate", record)
+                return
+
+            excel_error = None
+            try:
+                excel_export.append_hand(row)
+            except excel_export.ExcelError as exc:
+                logger.error("Excel error: %s", exc)
+                excel_error = str(exc)
+
+            self._emit("saved", {"record": record, "row": row, "excel_error": excel_error})
+        except Exception as exc:  # noqa: BLE001 - treated like a failed save: retried later, never lost silently
+            logger.exception("Unexpected error saving a hand")
             self._pending = (fingerprint, time.time() + RETRY_SECONDS)
-            self._emit("error", "Database error: %s" % exc)
-            return
-
-        self._pending = None
-        self._last_saved_fingerprint = fingerprint
-        self._saved_generation = self.memory.generation
-
-        if not inserted:
-            self._emit("duplicate", record)
-            return
-
-        excel_error = None
-        try:
-            excel_export.append_hand(row)
-        except excel_export.ExcelError as exc:
-            logger.error("Excel error: %s", exc)
-            excel_error = str(exc)
-
-        self._emit("saved", {"record": record, "row": row, "excel_error": excel_error})
+            self._emit("error", "Could not save the hand: %s" % exc)
+        finally:
+            with self._save_lock:
+                self._saving = None

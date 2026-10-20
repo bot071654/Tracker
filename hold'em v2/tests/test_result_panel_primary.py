@@ -171,7 +171,12 @@ def test_one_poll_is_not_enough_to_confirm(frame):
     assert first["player"]["confirmed"] is None
     assert first["player"]["state"] == rp.VISIBLE_PARTIAL
     assert set(statuses) <= {rp.CONFIRMING, rp.QUEUED}
-    assert statuses.count(rp.CONFIRMING) == rp.READS_PER_POLL
+    # The player's row is read at the old rate; the dealer's row - which has seconds, not minutes - is read in one go.
+    player = [read["status"] for read in first["player"]["reads"]]
+    dealer = [read["status"] for read in first["dealer"]["reads"]]
+    assert player.count(rp.CONFIRMING) == rp.READS_PER_POLL
+    assert dealer.count(rp.CONFIRMING) == rp.DEALER_ROW_READS_PER_POLL
+    assert first["dealer"]["confirmed"] is None and first["dealer"]["state"] == rp.VISIBLE_PARTIAL
 
 
 @needs_frame
@@ -191,7 +196,9 @@ def test_a_filling_panel_costs_only_a_few_readings_per_poll(frame):
         before = len(calls)
         snapshot = feed(panels, clock, [frame])
         per_poll.append(len(calls) - before)
-    assert max(per_poll) <= rp.READS_PER_POLL, per_poll
+    # The dealer's row is read at once (the first poll costs up to both budgets); after that the panel costs what it always did.
+    assert max(per_poll) <= rp.READS_PER_POLL + rp.DEALER_ROW_READS_PER_POLL, per_poll
+    assert max(per_poll[1:]) <= rp.READS_PER_POLL, per_poll
     assert sum(per_poll) == 10, "every thumbnail read exactly once: %s" % per_poll
     assert snapshot["player"]["complete"] and snapshot["dealer"]["complete"]
 

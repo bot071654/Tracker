@@ -107,6 +107,21 @@ ROI_MISSES = 2
 # do not. So the rest of a new row waits a poll or two, and the table does not.
 READS_PER_POLL = 2
 
+# ... except for the dealer's row, which gets a budget of its own.
+#
+# The dealer's row is the one that matters and the one with the least time. It appears at the showdown and the panels go
+# again a median of 4.8 seconds after the round completes (a 10-minute practice session: panels gone 0.95 - 7.9 s after
+# completion). Polls at the showdown take about 1.3 seconds - the table's cards are being read - so with two reads a poll
+# shared with the player's row, a new five-thumbnail dealer row needed four or five polls to read and confirm (two
+# identical complete readings): 4.4 and 6.8 seconds in two rounds, and in a third the panels went at 4.1 seconds with the row
+# at four thumbnails of five, so the round's result was never confirmed. Read in one poll, the row is confirmed on the next:
+# two polls.
+#
+# The cost is bounded and brief: five reads of about 25 ms on the poll where the row first appears (it is cached after
+# that), against the 10-thumbnail poll that was once measured at 0.9 s. The player's row keeps the old budget, and nothing
+# about WHAT is accepted changes - these are the same reads through the same reader with the same margins.
+DEALER_ROW_READS_PER_POLL = MAX_PANEL_CARDS
+
 READABLE = DEFAULT_CONFIG["confidence_threshold"]
 
 # Per-thumbnail statuses.
@@ -272,7 +287,17 @@ def locate(frame, layout=None, origin=(0, 0), known_player=None):
     return _assign(candidate_rows(frame, layout, origin), known_player)
 
 
-def _read(frame, boxes, reader=read_slot):
+def read_thumbnail(image):
+    """Read one panel thumbnail: the table's reader, with the pip's outline allowed to corroborate a black suit.
+
+    The thumbnails are about 34 x 47 pixels, at which a spade beats a club by less than the margin the table's cards must
+    clear (see card_recognizer.CORROBORATED_SUIT_MARGIN). Everything else - the confidence threshold, the rank margin, the
+    suit margin for any card whose outline does not corroborate it - is exactly the table's.
+    """
+    return read_slot(image, corroborate_suit=True)
+
+
+def _read(frame, boxes, reader=read_thumbnail):
     """Read one panel row. Returns (cards, reads) with None for the unreadable."""
     from capture.screen_capture import crop
 
@@ -578,13 +603,15 @@ class PanelTracker:
     it fits the table's current cards exactly, which is what happens when the
     panel reaches the new deal a poll or two before the card memory does.
 
-    It is also careful with time. At most READS_PER_POLL new thumbnails are
-    read in one poll and the rest are QUEUED for the next, so a panel filling
-    up at the showdown cannot hold up the poll that has to catch the dealer's
-    cards on the table.
+    It is also careful with time. At most READS_PER_POLL new thumbnails of the
+    player's row are read in one poll and the rest are QUEUED for the next, so
+    a panel filling up at the showdown cannot hold up the poll that has to
+    catch the dealer's cards on the table. The dealer's row - which appears at
+    the showdown and goes again within seconds - is read in one go, up to
+    DEALER_ROW_READS_PER_POLL, so it can be confirmed before it disappears.
     """
 
-    def __init__(self, reader=read_slot, clock=time.monotonic,
+    def __init__(self, reader=read_thumbnail, clock=time.monotonic,
                  full_search_interval=FULL_SEARCH_INTERVAL):
         self._reader = reader
         self._clock = clock
@@ -651,6 +678,33 @@ class PanelTracker:
     # most seven distinct cards over a round, so this holds several rounds.
     CACHE_SIZE = 64
 
+    # How far a thumbnail's pixels may differ from a picture already read and still be that picture.
+    #
+    # The cache used to need the pixels to be IDENTICAL. Live they never are: the saved panel crops of the same thumbnail
+    # in consecutive polls differ in a handful of pixels by one or two grey levels - 67 of 82 consecutive pairs by at most
+    # 3 levels, median 10 pixels of 1,598 - while every pair that really changed (the highlight on the winning cards, a
+    # card fading in) differs by 19 levels or more somewhere. So every poll missed the cache and spent the whole reading
+    # budget (READS_PER_POLL) on the first two thumbnails again, and the rest of the panel was never read: the player's
+    # row crept along, and the dealer's row, read after it, was never read at all - shown as VISIBLE_PARTIAL with nothing
+    # confirmed, 62 + 42 times in the installed log and never with a card. Replaying the real casino frame through this
+    # tracker with 10 pixels of that noise per thumbnail, neither row completed in 14 polls; without it the player's row
+    # completed on poll 4 and the dealer's on poll 6.
+    #
+    # 4 sits in the empty space between the two populations (3 and 19). A different card differs by far more than that, in
+    # hundreds of pixels, so a picture within the tolerance is a picture that was already read.
+    CACHE_TOLERANCE = 4
+
+    def _cached_read(self, pixels):
+        """The read of a picture already read that this one matches to within CACHE_TOLERANCE grey levels, or None."""
+        key = (pixels.shape, hash(pixels.tobytes()))
+        cached = self._cache.get(key)
+        if cached is not None and np.array_equal(cached[0], pixels):
+            return cached[1]
+        for seen, read in self._cache.values():
+            if seen.shape == pixels.shape and int(cv2.absdiff(seen, pixels).max()) <= self.CACHE_TOLERANCE:
+                return read
+        return None
+
     def _read_box(self, side, index, frame, box, origin, budget):
         x, y, w, h = box
         pixels = frame[y:y + h, x:x + w]
@@ -661,9 +715,9 @@ class PanelTracker:
         # were read again, because each position's box is cut a pixel
         # differently and the pictures are no longer identical.
         key = (pixels.shape, hash(pixels.tobytes()))
-        cached = self._cache.get(key)
-        if cached is not None and np.array_equal(cached[0], pixels):
-            read = dict(cached[1])
+        cached = self._cached_read(pixels)
+        if cached is not None:
+            read = dict(cached)
         elif budget[0] <= 0:
             read = {"card": None, "confidence": 0.0, "confident": False, "queued": True}
         else:
@@ -716,9 +770,9 @@ class PanelTracker:
 
         found = self._find(frame, layout, origin) if frame is not None else {}
         seen = set()
-        budget = [READS_PER_POLL]
+        budgets = {"player": [READS_PER_POLL], "dealer": [DEALER_ROW_READS_PER_POLL]}
         for side in SIDES:
-            reads = [self._read_box(side, index, frame, box, origin, budget)
+            reads = [self._read_box(side, index, frame, box, origin, budgets[side])
                      for index, box in enumerate(found.get(side) or [])]
             seen.update((side, index) for index in range(len(reads)))
             self._rows[side].update(reads)

@@ -7,6 +7,7 @@ screen is captured only for calibration and for "Test Recognition".
 import logging
 import threading
 
+import cv2
 import numpy as np
 
 try:
@@ -35,9 +36,18 @@ def _sct():
 
 
 def _to_bgr(shot):
-    """MSS returns BGRA; OpenCV wants BGR."""
+    """MSS returns BGRA; OpenCV wants BGR.
+
+    The result is a CONTIGUOUS (height, width, 3) array with exactly the pixels the first three channels held. Slicing them off
+    (`frame[:, :, :3]`, as this used to) leaves a view with a 4-byte pixel stride, and every OpenCV call made on it afterwards
+    copies the whole picture first: measured on a 1080p frame, `table_layout.locate` took 22 ms on the view and 7 ms on a
+    contiguous array, and a whole tracker tick 275 ms against 252 ms. `cvtColor` drops the alpha channel and writes the contiguous
+    result in one pass (4.5 ms; copying the view with `np.ascontiguousarray` costs 17 ms and would give back most of the gain).
+    """
     frame = np.array(shot, dtype=np.uint8)
-    return frame[:, :, :3]
+    if frame.ndim == 3 and frame.shape[2] == 4:
+        return cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+    return np.ascontiguousarray(frame[:, :, :3])
 
 
 def screen_size():

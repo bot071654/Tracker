@@ -57,6 +57,7 @@ screen and does nothing at all when they match - see `changed`.
 import tkinter as tk
 import tkinter.font as tkfont
 
+import round_lifecycle as lifecycle
 from poker import scenario_engine as se
 from poker import scenarios as scenario_rules
 
@@ -81,6 +82,12 @@ DECISION_LABELS = {
     se.DONT_PLAY: "DON'T PLAY",
     se.WAIT: "WAIT",
     BONUS: "BONUS NOW",
+    # How a decision is shown while its round is not over / its result not established (round_lifecycle.py). These are
+    # not new decisions: the Scenario Engine still says PLAY or DON'T PLAY, and these say how far to trust it yet.
+    lifecycle.LEANING_PLAY: "LEANING PLAY",
+    lifecycle.LEANING_DONT_PLAY: "LEANING DON'T PLAY",
+    lifecycle.RESULT_PENDING_KEY: "RESULT PENDING",
+    lifecycle.RESULT_UNKNOWN_KEY: "RESULT UNKNOWN",
 }
 
 # ONE look, for every decision. The banner is a single component and it does
@@ -136,6 +143,10 @@ SPOKEN_DECISIONS = {
     se.WAIT: "Wait",
     # Unreachable, like its label: nothing in the project produces BONUS.
     BONUS: "Bonus now",
+    lifecycle.LEANING_PLAY: "Leaning play",
+    lifecycle.LEANING_DONT_PLAY: "Leaning don't play",
+    lifecycle.RESULT_PENDING_KEY: "Result pending",
+    lifecycle.RESULT_UNKNOWN_KEY: "Unable to determine result",
 }
 
 
@@ -298,8 +309,11 @@ class DecisionBanner:
 
     # -- showing ---------------------------------------------------------------
 
-    def show(self, decision, reason="", round_id=None):
+    def show(self, decision, reason="", round_id=None, chime=True):
         """Display `decision`, replacing whatever was there. Returns True if it changed.
+
+        `chime=False` shows it silently: a decision that asks nothing of the watcher any more (the round it was about has
+        already finished) is not worth a sound.
 
         Called on every poll. When the decision has not changed this does
         nothing at all: no redraw, no sound, no flicker. An unknown decision
@@ -332,7 +346,7 @@ class DecisionBanner:
         self.window.deiconify()
         self.window.lift()
         self.visible = True
-        if self.sound and settled in CHIMES:
+        if self.sound and chime and settled in CHIMES:
             from ui.ante_alert import play_sound
             play_sound(settled)
         return True

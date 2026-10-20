@@ -36,9 +36,15 @@ def test_the_other_two_real_decisions_are_also_labelled():
 
 
 def test_every_label_key_is_a_constant_the_project_already_had():
-    """No invented decision values - each key comes from existing code."""
+    """No invented decision values - each key comes from existing code.
+
+    The four presentation keys (round_lifecycle.PRESENTATION_KEYS) are not decisions: they say how far the Scenario
+    Engine's PLAY / DON'T PLAY can be trusted at this point in the round.
+    """
+    import round_lifecycle
     known = {scenario_rules.ANTE, scenario_rules.SKIP, scenario_rules.PLAY,
              scenario_rules.FOLD, se.PLAY, se.DONT_PLAY, se.WAIT, db.BONUS}
+    known |= set(round_lifecycle.PRESENTATION_KEYS)
     assert set(DECISION_LABELS) == known
 
 

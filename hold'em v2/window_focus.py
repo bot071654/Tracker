@@ -32,6 +32,7 @@ as "cannot tell" and treats as ACTIVE, so the tracker behaves exactly as it
 always has.
 """
 
+import collections
 import ctypes
 import logging
 import os
@@ -48,10 +49,30 @@ GAME_INACTIVE = "GAME_INACTIVE"
 # drift apart. See FocusGate's own-window grace period below.
 APP_WINDOW_TITLE = "Poker Hand Tracker"
 
+# Every other window the tracker opens for itself, by title. The process check in
+# foreground_is_own_process() already recognises them all; the titles are a
+# second line of defence for the day that check cannot answer, and a test fails
+# if a window title used in the code is missing here. Matching is by substring,
+# like APP_WINDOW_TITLE (so "About - Poker Hand Tracker" and the sign-in window
+# are covered by the first entry).
+APP_WINDOW_TITLES = (
+    APP_WINDOW_TITLE,
+    "Teach / Correct Scenario",
+    "Live Recognition Debug",
+    "Test Recognition",
+    "Scenarios - before the round",
+    "Scenarios - after the flop",
+)
+
 # How long after a FocusGate is created its own window is allowed to be the
 # foreground one without that being read as "the person left the game" - see
 # the docstring on FocusGate.look().
 STARTUP_GRACE_SECONDS = 3.0
+
+# How long the tracker's own windows may stay in front, once the game has been
+# seen in front and nothing else has been, before that is treated like leaving
+# the game. See FocusGate.look().
+OWN_WINDOW_HOLD_SECONDS = 120.0
 
 
 def _user32():
@@ -83,6 +104,113 @@ def foreground_title():
         return None
 
 
+def foreground_is_own_process():
+    """True when the window in front belongs to this very process.
+
+    The tracker's own windows - the main window, Teach / Correct Scenario,
+    the rule editors, the debug and About windows - are all this process, so
+    one question covers them without a list of titles. False when it cannot
+    be told, which leaves the title rules to decide.
+    """
+    user32 = _user32()
+    if user32 is None:
+        return False
+    try:
+        user32.GetForegroundWindow.restype = ctypes.c_void_p
+        handle = user32.GetForegroundWindow()
+        if not handle:
+            return False
+        pid = ctypes.c_ulong(0)
+        user32.GetWindowThreadProcessId(ctypes.c_void_p(handle), ctypes.byref(pid))
+        return pid.value == os.getpid()
+    except Exception:                   # noqa: BLE001 - never stop the tracker
+        logger.exception("Could not tell whose window is in front")
+        return False
+
+
+def own_window_rects():
+    """Where this application's own visible windows are on the screen: [(left, top, right, bottom), ...].
+
+    The tracker reads the whole monitor, so a tracker window lying over the table is read as if it were the table. These
+    rectangles let the reader leave those places alone. Only windows of this process that are visible and not minimised, in
+    physical screen pixels (the same coordinates the screen capture uses). Anything that cannot be asked - another platform, an
+    API error - gives [], which is today's behaviour: nothing excluded.
+    """
+    if os.name != "nt":
+        return []
+    user32 = _user32()
+    if user32 is None:
+        return []
+    old_context = None
+    try:
+        # The rectangles must be in the same pixels the capture reports. A process that is not DPI aware is shown scaled
+        # coordinates, so for this one call the thread asks for real ones (Windows 10 1607 and later; harmless if absent).
+        try:
+            set_context = user32.SetThreadDpiAwarenessContext
+            set_context.restype = ctypes.c_void_p
+            set_context.argtypes = [ctypes.c_void_p]
+            old_context = set_context(ctypes.c_void_p(-4))        # DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
+        except (AttributeError, OSError):
+            old_context = None
+        from ctypes import wintypes
+        pid = os.getpid()
+        found = []
+
+        def visit(handle, _param):
+            owner = wintypes.DWORD(0)
+            user32.GetWindowThreadProcessId(handle, ctypes.byref(owner))
+            if owner.value != pid or not user32.IsWindowVisible(handle) or user32.IsIconic(handle):
+                return True
+            rect = wintypes.RECT()
+            if user32.GetWindowRect(handle, ctypes.byref(rect)) and rect.right > rect.left and rect.bottom > rect.top:
+                found.append((rect.left, rect.top, rect.right, rect.bottom))
+            return True
+
+        callback = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)(visit)
+        user32.EnumWindows(callback, 0)
+        return found
+    except Exception:                       # noqa: BLE001 - never stop the tracker
+        logger.exception("Could not list this application's windows; nothing is excluded")
+        return []
+    finally:
+        if old_context:
+            try:
+                user32.SetThreadDpiAwarenessContext(ctypes.c_void_p(old_context))
+            except Exception:               # noqa: BLE001
+                pass
+
+
+def covered_fraction(box, rects):
+    """How much of `box` ({left, top, width, height}) lies under any of `rects`, from 0.0 to 1.0.
+
+    Overlapping rectangles are not counted twice (the fraction is of the box's own pixels).
+    """
+    left, top = int(box["left"]), int(box["top"])
+    right, bottom = left + int(box["width"]), top + int(box["height"])
+    area = max(1, (right - left) * (bottom - top))
+    pieces = []
+    for r_left, r_top, r_right, r_bottom in rects or ():
+        l, t, r, b = max(left, r_left), max(top, r_top), min(right, r_right), min(bottom, r_bottom)
+        if r > l and b > t:
+            pieces.append((l, t, r, b))
+    if not pieces:
+        return 0.0
+    # Union area by sweeping the (few) rectangles on a coarse grid of their own edges.
+    xs = sorted({x for p in pieces for x in (p[0], p[2])})
+    covered = 0
+    for x0, x1 in zip(xs, xs[1:]):
+        spans = sorted((p[1], p[3]) for p in pieces if p[0] < x1 and p[2] > x0)
+        top_edge = None
+        for y0, y1 in spans:
+            if top_edge is None or y0 > top_edge:
+                covered += (x1 - x0) * (y1 - y0)
+                top_edge = y1
+            elif y1 > top_edge:
+                covered += (x1 - x0) * (y1 - top_edge)
+                top_edge = y1
+    return min(1.0, covered / float(area))
+
+
 class FocusGate:
     """Whether the tracker may read the screen this poll.
 
@@ -97,14 +225,31 @@ class FocusGate:
     """
 
     def __init__(self, target, read_title=foreground_title,
-                own_title=APP_WINDOW_TITLE, grace_seconds=STARTUP_GRACE_SECONDS,
-                clock=time.time):
+                own_title=APP_WINDOW_TITLES, grace_seconds=STARTUP_GRACE_SECONDS,
+                clock=time.monotonic, own_process=foreground_is_own_process,
+                own_hold_seconds=OWN_WINDOW_HOLD_SECONDS):
         self.target = (target or "").strip()
         self._read_title = read_title
-        self._own_title = (own_title or "").strip()
+        if isinstance(own_title, str):
+            own_title = (own_title,)
+        self._own_titles = tuple(t.strip().lower() for t in (own_title or ()) if t and t.strip())
         self._grace_seconds = float(grace_seconds)
         self._clock = clock
         self._created_at = clock()
+        self._own_process = own_process
+        self._own_hold_seconds = float(own_hold_seconds)
+        # True once a look has matched the game, so there is evidence that the
+        # game is what is on the screen behind the tracker's own windows.
+        self._game_seen = False
+        # When the foreground last became one of the tracker's own windows,
+        # None while it is anything else.
+        self._own_since = None
+        # True while the last look was a tracker window being held through (the
+        # hold, not the startup grace).
+        self._holding = False
+        # How the last few looks were classified - labels only, never titles - so
+        # that a pause can be explained from the log. See _label().
+        self._recent = collections.deque(maxlen=6)
         # Optimistic: until a look says otherwise the tracker runs. A gate
         # that starts paused would stall a tracker on a machine that cannot
         # answer the question at all.
@@ -125,6 +270,19 @@ class FocusGate:
     def paused(self):
         return self.state == GAME_INACTIVE
 
+    def _label(self, outcome):
+        self._recent.append(outcome)
+
+    @property
+    def holding_own_window(self):
+        """True while a tracker window is in front and the gate is holding its state through it.
+
+        Read-only, and true only for the hold in look() (the game seen in front, nothing else since, within the
+        cap) - not for the startup grace, a match, an unrelated window or a pause. While it is true the screen
+        behind the tracker's window is what is being read, and the tracker's window may be covering the table.
+        """
+        return self._holding
+
     def look(self):
         """The state the world is in right now, without recording it.
 
@@ -141,6 +299,7 @@ class FocusGate:
         front of the game after several seconds is exactly what leaving the
         game to look at something else looks like, own window or not.
         """
+        self._holding = False
         if not self.enabled:
             return GAME_ACTIVE
         title = self._read_title()
@@ -149,10 +308,39 @@ class FocusGate:
             # This platform cannot say. Not a reason to stop tracking.
             return GAME_ACTIVE
         if self.target.lower() in title.lower():
+            self._own_since = None
+            self._label("match")
             return GAME_ACTIVE
-        if (self._own_title and self._own_title.lower() in title.lower()
-                and self._clock() - self._created_at < self._grace_seconds):
+        lowered = title.lower()
+        own = (any(own_title in lowered for own_title in self._own_titles)
+               or self._own_process())
+        if not own:
+            self._own_since = None
+            self._label("other-empty" if not title else "other")
+            return GAME_INACTIVE
+        now = self._clock()
+        if self._own_since is None:
+            self._own_since = now
+        if now - self._created_at < self._grace_seconds:
+            self._label("own-grace")
             return None
+        # Past the startup grace: the tracker's own window is in front. The
+        # screen that is grabbed is the whole monitor, so what is read is what
+        # is behind it. That is the game only if the game was in front a
+        # moment ago and nothing else has been since - so this holds the
+        # state, and never changes it: it cannot resume a paused tracker (only
+        # a match does), and one real non-match before it (streak above zero)
+        # means something else was in front, which is judged as before. It is
+        # also not for ever: a long stay in the tracker's windows is judged
+        # like any other window.
+        if (self._game_seen and self._inactive_streak == 0
+                and now - self._own_since < self._own_hold_seconds):
+            self._holding = True
+            self._label("own-hold")
+            return None
+        self._label("own-not-held(%s)" % (
+            "game-never-seen" if not self._game_seen else
+            "after-a-non-match" if self._inactive_streak else "hold-expired"))
         return GAME_INACTIVE
 
     def observe(self):
@@ -193,6 +381,7 @@ class FocusGate:
         if raw is None:
             return None
         if raw == GAME_ACTIVE:
+            self._game_seen = True
             self._inactive_streak = 0
             self.state = GAME_ACTIVE
         else:
@@ -218,8 +407,9 @@ class FocusGate:
         # for exactly the kind of question this line exists to answer.
         logger.info(
             "[FOCUS] foreground_title=%r configured_game_window_title=%r "
-            "matched=%s state=%s",
-            self.title, self.target, raw == GAME_ACTIVE, self.state)
+            "matched=%s state=%s | recent looks: %s",
+            self.title, self.target, raw == GAME_ACTIVE, self.state,
+            ",".join(self._recent))
         return self.state
 
 

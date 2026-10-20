@@ -32,6 +32,7 @@ import logging
 import time
 import tkinter as tk
 
+import round_lifecycle as lifecycle
 from poker import scenarios as scenario_rules
 from ui.decision_banner import DecisionBanner
 
@@ -39,6 +40,10 @@ logger = logging.getLogger(__name__)
 
 WAITING = "WAITING"
 SHOW, HIDE = "show", "hide"
+READY, PENDING, UNKNOWN = "ready", "pending", "unknown"       # what ready() may answer, see AnteAlertLogic.observe
+
+RESULT_PENDING_KEY = lifecycle.RESULT_PENDING_KEY
+RESULT_UNKNOWN_KEY = lifecycle.RESULT_UNKNOWN_KEY
 
 COLOURS = {scenario_rules.ANTE: ("#0b7a3b", "#ffffff"),     # green: ante
            scenario_rules.SKIP: ("#5f6368", "#ffffff")}     # grey: skip
@@ -61,6 +66,22 @@ class AnteAlertLogic:
         # of those is a betting window. Read by the window to show a neutral
         # "waiting for the first round" status instead of guessing ANTE.
         self.seen_a_hand = False
+        # What has already been said about each round, by round key: a set of "pending", "unknown", "alert". A round is
+        # told about once. Nothing that happens on the table afterwards - a stray card read, an empty poll, half of the
+        # next deal - can make the same round alert again; only a different round has its own say. Deliberately kept
+        # across reset() (a pause is not a new round).
+        self._notified = {}
+        self._showing_key = None
+
+    def _said(self, key):
+        return self._notified.get(key, set()) if key is not None else set()
+
+    def _note(self, key, kind):
+        if key is None:
+            return
+        self._notified.setdefault(key, set()).add(kind)
+        while len(self._notified) > 32:
+            self._notified.pop(next(iter(self._notified)))
 
     def reset(self):
         """Tracker stopped or restarted: forget the table, hide anything shown."""
@@ -70,13 +91,25 @@ class AnteAlertLogic:
         self.seen_a_hand = False
         return event
 
-    def observe(self, state, seen, decide, now=None):
+    def observe(self, state, seen, decide, now=None, ready=None, key=None):
         """Fold in one tracker update.
 
         `seen` is this poll's raw readings (slot -> card or None), `state` the
         tracker's state, and `decide()` returns (action, reason) from the
         pre-round rules - only called when an alert is actually due. Returns
         None, (SHOW, action, reason) or (HIDE, why).
+
+        `ready()`, when given, says whether the round that just ended is
+        finished and its result known: (READY, why), (PENDING, why) or
+        (UNKNOWN, why). An empty-looking table alone never decides anything -
+        the rules are about the round that FINISHED, so until it is confirmed
+        finished the banner says RESULT PENDING (not ANTE / SKIP), and if that
+        does not resolve within `timeout` seconds it says the result could not
+        be determined. Without `ready` the alert fires as it always did.
+
+        `key` names the finished round the alert is about (the window passes its session and round id). With a key, each of
+        the three things this can say about a round - pending, unknown, and the ANTE / SKIP alert itself - is said at most
+        once, whatever the table does afterwards; the alert also never follows a notice that the result is unknown.
         """
         now = time.time() if now is None else now
         # Betting opens once the PLAYER's seat clears - the same thing state
@@ -95,6 +128,14 @@ class AnteAlertLogic:
             if not table_empty and any((seen or {}).get(slot) for slot in ("player_1", "player_2")):
                 return self._hide("cards dealt - betting closed")
             if now - self.showing[2] >= self.timeout:
+                if self.showing[0] == RESULT_PENDING_KEY:
+                    # The round never became a confirmed, finished one in time: say so, once, and stop waiting for it.
+                    self._had_cards = False
+                    reason = "Unable to determine result: the finished round was not confirmed"
+                    self.showing = (RESULT_UNKNOWN_KEY, reason, now)
+                    self._note(self._showing_key, "unknown")
+                    logger.info("[ANTE ALERT] result not confirmed in time - no pre-round decision")
+                    return SHOW, RESULT_UNKNOWN_KEY, reason
                 return self._hide("timed out")
 
         if not table_empty:
@@ -108,14 +149,37 @@ class AnteAlertLogic:
         # by itself - it is also the lobby, a table still loading, or the
         # tracker's own cold start. Only a real hand's cards actually having
         # been seen and then gone again is evidence that betting has opened.
-        due = self._empty == self.empty_polls and self._had_cards
+        due = self._empty >= self.empty_polls and self._had_cards
         if not due:
             return None
+        said = self._said(key)
+        if "alert" in said or "unknown" in said:
+            # This round has had its say (or was declared undeterminable): never again, however the table looks now.
+            self._had_cards = False
+            return None
+        verdict, why = (READY, "") if ready is None else ready()
+        if verdict == PENDING:
+            # Not consumed: asked again on every empty poll until it resolves or the pending banner times out.
+            if "pending" in said or (self.showing and self.showing[0] == RESULT_PENDING_KEY):
+                return None
+            self.showing = (RESULT_PENDING_KEY, why, now)
+            self._showing_key = key
+            self._note(key, "pending")
+            logger.info("[ANTE ALERT] round result pending - no pre-round decision yet (%s)", why)
+            return SHOW, RESULT_PENDING_KEY, why
         self._had_cards = False
+        if verdict != READY:
+            self.showing = (RESULT_UNKNOWN_KEY, why, now)
+            self._showing_key = key
+            self._note(key, "unknown")
+            logger.info("[ANTE ALERT] result unknown - no pre-round decision (%s)", why)
+            return SHOW, RESULT_UNKNOWN_KEY, why
         action, reason = decide()
         if action not in COLOURS:
             logger.warning("[ANTE ALERT] unknown pre-round action %r - no alert", action)
             return None
+        self._note(key, "alert")
+        self._showing_key = key
         self.showing = (action, reason, now)
         self.alerts += 1
         logger.info("[ANTE ALERT] betting open -> %s (%s)", action.upper(), reason)

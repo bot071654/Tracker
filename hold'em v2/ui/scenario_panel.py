@@ -12,6 +12,7 @@ import textwrap
 import tkinter as tk
 from tkinter import ttk
 
+import round_lifecycle as lifecycle
 from poker import scenario_engine as se
 
 DASH = "--"
@@ -111,8 +112,20 @@ def scenario_view(scenario):
         dealer = "Cards: %s  Hand: %s" % (_cards(scenario.get("dealer_cards")),
                                           scenario.get("dealer_hand") or DASH)
 
-    return ("Decision: %s" % decision.replace("_", " "), COLOURS[decision],
-            details, qualification, dealer, QUALIFICATION_COLOURS[qualified])
+    label, colour = "Decision: %s" % decision.replace("_", " "), COLOURS[decision]
+    # How far to trust it at this point in the round (round_lifecycle.annotate): the engine's decision is unchanged, only
+    # what the panel says about it. Never set for WAIT.
+    presentation = scenario.get("presentation") if decision != se.WAIT else None
+    if presentation in (lifecycle.LEANING_PLAY, lifecycle.LEANING_DONT_PLAY):
+        label += " (provisional)"
+        details = "Round in progress - not final\n" + details
+    elif presentation == lifecycle.RESULT_PENDING_KEY:
+        label, colour = "Decision: RESULT PENDING", COLOURS[se.WAIT]
+        details = "Round complete - result pending\n" + details
+    elif presentation == lifecycle.RESULT_UNKNOWN_KEY:
+        label, colour = "Decision: RESULT UNKNOWN", "#b00020"
+        details = "Unable to determine result\n" + details
+    return (label, colour, details, qualification, dealer, QUALIFICATION_COLOURS[qualified])
 
 
 def action_text(action):

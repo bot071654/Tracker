@@ -11,6 +11,8 @@ from tkinter import messagebox, ttk
 
 from poker import scenarios
 from poker import teaching
+import round_lifecycle
+from ui import decision_banner
 
 logger = logging.getLogger(__name__)
 
@@ -279,6 +281,13 @@ class FlopRules(_RuleWindow):
         return scenarios.describe_flop_rule(rule)
 
 
+DISAGREEMENT_NOTICE = (
+    "The banner and the saved flop rules disagree on this hand. That is by "
+    "design (see docs/SCENARIOS.md, section 1): the banner follows the "
+    "Scenario Engine, and a correction here writes a saved flop rule - it "
+    "changes what the backtest and this window say, not the banner.")
+
+
 class TeachScenarioWindow(tk.Toplevel):
     """Correct the decision on screen, by writing one of the rules above.
 
@@ -422,11 +431,13 @@ class TeachScenarioWindow(tk.Toplevel):
     def _build_scenario(self, frame):
         ttk.Label(frame, text="TEACH / CORRECT SCENARIO",
                   font=("Segoe UI", 13, "bold")).pack(anchor="w")
-        ttk.Label(frame, text="The decision below is the one that was on "
-                              "screen when you pressed the button. It is held "
-                              "still: if the round moves on, teaching is "
-                              "cancelled rather than saved against the wrong "
-                              "hand.",
+        ttk.Label(frame, text="The cards below are the ones on screen when "
+                              "you pressed the button, held still: if the "
+                              "round moves on, teaching is cancelled rather "
+                              "than saved against the wrong hand. The green "
+                              "banner shows the Scenario Engine's decision; "
+                              "the saved flop rules are a separate list, and "
+                              "they are what a correction here changes.",
                   wraplength=560, justify="left",
                   foreground="#444").pack(anchor="w", pady=(2, 10))
 
@@ -445,16 +456,35 @@ class TeachScenarioWindow(tk.Toplevel):
             ("Turn:", snapshot.turn_card()),
             ("River:", snapshot.river_card()),
             ("Hand Type:", snapshot.hand or "-"),
-            ("Current Decision:", self._decision_text()),
+            ("On screen (banner):", self._on_screen_text()),
+            ("Saved flop rule:", self._rule_text()),
             ("Matched Rule:", snapshot.matched_name()),
             ("Rule Priority:", snapshot.priority() or "-  (the default)"),
         ]
         for index, (label, value) in enumerate(rows):
-            ttk.Label(grid, text=label, width=17).grid(
+            ttk.Label(grid, text=label, width=19).grid(
                 row=index, column=0, sticky="w", pady=1)
             ttk.Label(grid, text=value, font=("Segoe UI", 9, "bold"),
                       wraplength=400, justify="left").grid(
                 row=index, column=1, sticky="w", pady=1)
+        if self._decisions_disagree():
+            ttk.Label(frame, text=DISAGREEMENT_NOTICE, wraplength=560,
+                      justify="left", foreground="#8a4b00").pack(
+                anchor="w", pady=(0, 6))
+
+    def _on_screen_text(self):
+        """What the green banner said for this hand: the Scenario Engine's word."""
+        key = round_lifecycle.present(self.snapshot.engine_decision, self.snapshot.lifecycle)[0]
+        label = decision_banner.label_for(key)
+        return label or "-  (no decision on screen yet)"
+
+    def _rule_text(self):
+        """What the saved flop rules say for this hand - never called "on screen"."""
+        return scenarios.ACTION_LABELS[self.snapshot.action].upper()
+
+    def _decisions_disagree(self):
+        engine = self.snapshot.engine_decision
+        return bool(engine) and engine != teaching.ENGINE_EQUIVALENT.get(self.snapshot.action)
 
     def _decision_text(self):
         """What the rules say, and what the engine said, when they differ.

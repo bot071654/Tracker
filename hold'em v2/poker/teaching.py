@@ -135,6 +135,8 @@ class ScenarioSnapshot:
     starts, because stopping and starting does not reset the generation.
     """
 
+    lifecycle = None          # the payload's round lifecycle (round_lifecycle.py), set by capture()
+
     def __init__(self, session, round_id, captured_at, stage, cards, statuses,
                  section, features, action, matched_rule, matched_index,
                  engine_decision, engine, previous, history, streak):
@@ -274,7 +276,7 @@ def capture(payload, rules, session, previous=None, history=None, now=None):
             index = position
             break
 
-    return ScenarioSnapshot(
+    snapshot = ScenarioSnapshot(
         session=session,
         round_id=payload.get("round_id"),
         captured_at=now or datetime.datetime.now(),
@@ -292,7 +294,10 @@ def capture(payload, rules, session, previous=None, history=None, now=None):
         history=history or ([previous] if previous else []),
         streak=scenarios.player_win_streak(
             history or ([previous] if previous else [])),
-    ), ""
+    )
+    # Where the round stood, so the dialog can say what the banner said (LEANING PLAY while the round was in progress).
+    snapshot.lifecycle = payload.get("lifecycle")
+    return snapshot, ""
 
 
 # -- what can be taught about this scenario ------------------------------------
