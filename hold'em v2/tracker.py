@@ -9,6 +9,7 @@ import os
 import queue
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 import cv2
@@ -26,14 +27,14 @@ from export import excel_export
 from poker import scenario_engine
 from poker import scenarios as scenario_rules
 from poker.hand_record import build_hand_record, hands_so_far
-from recognition import result_panel, table_layout
+from recognition import result_panel, slot_reuse, table_layout
 from recognition.live_diagnostics import LiveDiagnostics
 from recognition import dealer_crop, dealer_watch
 import window_focus
 from round_lifecycle import RoundLifecycle
 from tick_timing import TimingSummary
 from recognition.card_recognizer import (
-    TemplatesMissingError, read_slot, undecided_half,
+    TemplatesMissingError, load_templates, read_slot, undecided_half,
 )
 
 logger = logging.getLogger(__name__)
@@ -114,8 +115,8 @@ def read_table(config, images=None, regions=None):
     # The dealer's cards are cut to their own face before they are read; see
     # recognition/dealer_crop.py for the live evidence. No other slot is.
     dealer_cut = config.get("dealer_face_cut", True)
-    cards, reads = {}, {}
-    for slot in CARD_SLOTS:
+
+    def one(slot):
         started = time.perf_counter()
         image, face = images.get(slot), None
         if dealer_cut and slot in DEALER_SLOTS and image is not None:
@@ -124,9 +125,48 @@ def read_table(config, images=None, regions=None):
         read["ms"] = round((time.perf_counter() - started) * 1000.0, 2)
         if slot in DEALER_SLOTS:
             read["dealer_face"] = list(face) if face else None
-        reads[slot] = read
-        cards[slot] = read["card"] if read["confident"] else None
+        return read
+
+    # Each slot is read on its own from its own picture, so the reads can run side by side: OpenCV releases the interpreter lock
+    # while it matches, and the answers are the very same ones in the very same order (see read_threads()).
+    pictured = [slot for slot in CARD_SLOTS if images.get(slot) is not None]
+    workers = read_threads(config)
+    results = {}
+    if workers > 1 and len(pictured) > 1:
+        load_templates()                      # load once here, never from two threads at once
+        pool = _read_pool(workers)
+        futures = {slot: pool.submit(one, slot) for slot in pictured}
+        for slot in pictured:                 # in slot order: the first failure raised is the one a serial read would have raised
+            results[slot] = futures[slot].result()
+    for slot in CARD_SLOTS:
+        results[slot] = results[slot] if slot in results else one(slot)
+    cards, reads = {}, {}
+    for slot in CARD_SLOTS:
+        reads[slot] = results[slot]
+        cards[slot] = results[slot]["card"] if results[slot]["confident"] else None
     return cards, reads
+
+
+_READ_POOL = None
+_READ_POOL_LOCK = threading.Lock()
+
+
+def read_threads(config):
+    """How many slots may be read side by side: config["read_threads"], else up to 4 (the cores there are); 1 reads them one by one."""
+    if not config.get("parallel_reads", True):
+        return 1
+    wanted = config.get("read_threads")
+    if wanted is None:
+        wanted = min(4, os.cpu_count() or 1)
+    return max(1, int(wanted))
+
+
+def _read_pool(workers):
+    global _READ_POOL
+    with _READ_POOL_LOCK:
+        if _READ_POOL is None or _READ_POOL._max_workers != workers:
+            _READ_POOL = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="slot-read")
+        return _READ_POOL
 
 
 # How a slot's reading stands, for the log and for Test Recognition. Reported
@@ -680,6 +720,10 @@ class Tracker:
         self._last_saved_fingerprint = None
         # Round state / result for the update payload (round_lifecycle.py).
         self._lifecycle = RoundLifecycle()
+        # SHADOW MODE (recognition/slot_reuse.py): measures whether a slot's read could have been reused. It observes only; every slot is
+        # still read exactly as before. config["shadow_reuse"] = False turns it off.
+        self._shadow = slot_reuse.ShadowReuse() if config.get("shadow_reuse", True) else None
+        self._shadow_every = max(1, int(config.get("shadow_reuse_every", 200)))
         self._last_state = None
         # Set once, the first time this session's very first poll already
         # finds a state past WAITING - a hand already under way before
@@ -768,6 +812,8 @@ class Tracker:
             return
         self._stop.clear()
         self._lifecycle = RoundLifecycle()      # a new session follows no earlier round
+        if self._shadow is not None:
+            self._shadow = slot_reuse.ShadowReuse()
         self._thread = threading.Thread(target=self._run, name="tracker", daemon=True)
         self._thread.start()
         logger.info("Tracker started")
@@ -780,6 +826,8 @@ class Tracker:
         worker, self._save_worker = self._save_worker, None
         if worker is not None:
             worker.close(timeout=8.0)       # a hand being saved is given time to finish
+        if self._shadow is not None and self._shadow.polls:
+            logger.info(self._shadow.log_line())
         logger.info("Tracker stopped")
 
     # -- internals ---------------------------------------------------------
@@ -881,6 +929,8 @@ class Tracker:
         # Whatever stood where before the game left the screen is no longer known to: dealer boxes remembered from then
         # are not reused (the next layout that is found afresh starts the memory again).
         self._forget_dealer_boxes("the game left the screen")
+        if self._shadow is not None:
+            self._shadow.forget_all()
 
     def _with_dealer_boxes(self, layout):
         """`layout`, plus the dealer boxes of an earlier layout when the table is proven not to have moved.
@@ -1170,6 +1220,8 @@ class Tracker:
             # A tracker window over the table: nothing is cropped, read or cached.
             self._timing.update(capture=(captured - started) * 1000.0,
                                 roi=(located - captured) * 1000.0)
+            if self._shadow is not None:
+                self._shadow.forget_all()
             return {}, {}
         images = {slot: crop(frame, regions[slot], origin)
                   for slot in CARD_SLOTS if slot in regions and slot not in self._covered_slots}
@@ -1227,7 +1279,28 @@ class Tracker:
                 read = self._last_read[slot]
                 reads[slot] = read
                 cards[slot] = read["card"] if read["confident"] else None
+        self._shadow_observe(images, covered, reads)
         return cards, reads
+
+    def _shadow_observe(self, images, covered, reads):
+        """Hand this poll to the shadow measurement (recognition/slot_reuse.py). It reads what is passed and changes nothing.
+
+        Called after every slot has been read as usual and before card memory is updated, so it sees the memory state a real reuse
+        would have had to decide on. A failure here is swallowed: a measurement never stops a poll.
+        """
+        shadow = self._shadow
+        if shadow is None:
+            return
+        try:
+            memory = {slot: {"card": self.memory.cards.get(slot), "settled": is_settled(self.memory.support(slot)),
+                             "held": slot in self.memory.held} for slot in slot_reuse.SHADOW_SLOTS}
+            boxes = {slot: (box["left"], box["top"], box["width"], box["height"])
+                     for slot, box in self._last_regions.items() if slot in slot_reuse.SHADOW_SLOTS}
+            shadow.observe(images, covered, reads, self._layout_source == "dynamic", self.memory.generation, memory, boxes)
+            if shadow.polls % self._shadow_every == 0:
+                logger.info(shadow.log_line())
+        except Exception:  # noqa: BLE001 - measuring must never stop the loop
+            logger.debug("Could not record the shadow measurement", exc_info=True)
 
     def _unchanged(self, slot, image):
         """True when this slot shows exactly the pixels it showed last poll.

@@ -69,6 +69,10 @@ FIT_TO_SCREEN = 100_000
 # than this cannot be built in the rule window.
 HISTORY_ROUNDS = 10
 
+# How often the window drains the tracker's updates, in milliseconds. An update waits in the queue until the next drain, so this
+# is the longest the screen can lag behind a poll (it was 200). Draining an empty queue costs next to nothing.
+EVENT_POLL_MS = 50
+
 # The status line while the game window is not in front. Grey rather than red:
 # a paused tracker is waiting, not broken.
 PAUSED_GREY = "#777777"
@@ -1092,7 +1096,7 @@ class App:
         except queue.Empty:
             pass
         self._reconcile_tracking()
-        self.root.after(200, self._poll_events)
+        self.root.after(EVENT_POLL_MS, self._poll_events)
 
     def _reconcile_tracking(self):
         """Notice a tracker that ended without anyone pressing Stop.
