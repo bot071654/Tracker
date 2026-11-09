@@ -3,6 +3,20 @@ PokerHandTracker 1.0.3 — Windows
 Update for 1.0.2. Windows x64 only. The tracker is still read-only: it never clicks, bets or automates anything.
 
 What changed
+- A pre-round SKIP now stays the decision for the whole hand it was issued for. Before, the SKIP ROUND alert disappeared when the
+  player's cards were dealt, and the banner and the voice then said WAIT and, after the flop, LEANING PLAY for the same hand. Now:
+  * Before the first card is dealt the SKIP stays up, even after the alert's 25-second timeout. It has no automatic expiry before
+    the deal.
+  * From the deal until the hand is over the SKIP is the only decision shown and spoken, through the result as well. The result
+    appears in the reason line beside it; the decision itself is not replaced.
+  * A RESULT PENDING or RESULT UNKNOWN notice about that hand is shown as a notice, never as a decision. The SKIP governs again
+    when that hand's cards come back.
+  * The previous hand's SKIP is released only when a completely different pair of player cards is confirmed (the card memory's own
+    rule: the same new pair on consecutive polls). While that is being confirmed, nothing from the old hand is shown or spoken,
+    so the old SKIP never flashes on the new hand.
+  * Clicking the banner while it shows the SKIP dismisses it for that hand: it is not shown again, and no other decision takes
+    its place. A new hand gets its own decision.
+  * Pausing and resuming keeps the SKIP; stopping and starting tracking clears it.
 - Faster card reading. The cards on the table are now read side by side on up to four threads instead of one after another. Each
   card is read from its own picture by the same code as before, so every reading is the same one, in the same order. Measured
   offline on a test workload (the same recorded casino frame with video-like noise, source of 1.0.2 against this source,
@@ -15,8 +29,15 @@ What changed
   picture had not changed. It reads every card exactly as before and only counts. Every few hundred polls, and when it stops, the log
   gets a `SHADOW_REUSE` line with counts only; no picture, crop or screenshot is ever stored or logged. The setting `shadow_reuse`
   turns it off, and `parallel_reads` turns the side-by-side reading off.
-- Nothing about recognition thresholds, card confirmation, the result confirmation, the ANTE/SKIP alert (once per round, only after a
-  confirmed result), the provisional wording or the voice has changed.
+- Nothing about recognition thresholds, card confirmation, the result confirmation, or when the ANTE/SKIP alert is first issued (once
+  per round, only after a confirmed result) has changed. The SKIP binding above changes only what happens to a SKIP after it has
+  been issued.
+
+Known limitations of the SKIP binding
+- A pair that is only partly read, or a new pair that shares a card with the previous one, is not treated as a new deal, so the
+  previous hand's SKIP can stay on the banner for the new hand.
+- A SKIP shown before the deal has no automatic expiry: it stays until the hand is dealt (and then follows the rules above) or until
+  tracking is stopped and started.
 
 Known limitation: some rounds stay pending or unknown
 Some rounds are never confirmed, so they produce no ANTE/SKIP alert. This happens, for example, when a dealer card or the river is

@@ -263,6 +263,127 @@ def is_provisional(decision, lifecycle):
     return present(decision, lifecycle)[0] in (LEANING_PLAY, LEANING_DONT_PLAY)
 
 
+class HandBinding:
+    """A pre-round decision held to the hand it was issued for (a SKIP stays a SKIP until that hand is over).
+
+    The pre-round alert is about the hand that is about to be dealt, but the alert only lives while betting is open; once the
+    player's cards appear it is hidden and the Scenario Engine's provisional PLAY took the banner. Binding the decision to the
+    hand keeps it on the banner and in the voice for the whole hand - through COMPLETE and the result panel's confirmation too:
+    the result is shown in the reason line (`result_note`), the decision stays the pre-round one.
+
+    Three kinds of output are kept apart. The bound decision is a decision for the bound hand. A RESULT PENDING / UNKNOWN
+    notice is a status about that hand's result, issued by the ANTE alert, never a decision. What follows is for the next hand.
+
+    States (what `observe` leaves in `governing` / `holding` / `dormant`):
+      * PREDEAL  - bound, none of its cards seen yet: the decision governs (the alert's 25 s timeout does not end it);
+      * INHAND   - its cards are on the table, or it is still the hand being re-read: the decision governs;
+      * HOLDING  - a fully different player pair has been read but not yet confirmed: nothing is published, the old decision
+                   is taken off the banner (`holding`);
+      * DORMANT  - a notice was issued for the bound hand (`notice`): nothing is published for it while the table is empty;
+      * CLEARED  - released (`clear`).
+    Which hand is bound, and when it ends, comes only from the lifecycle and the confirmed cards - never from a round id seen
+    on an empty table (the card memory starts a new generation while the table is empty, see CardMemory.clear):
+      * the hand is the first round that HOLDS CARDS (state not WAITING) after the decision, other than the finished round the
+        decision was made from (`previous`);
+      * a round that holds cards under another id is the same hand re-read after a clear - unless both of its player cards
+        read as a different pair, on `confirm_frames` polls in a row. That is CardMemory._is_new_deal, and the only thing here
+        that ends a hand: a new id alone, an empty table, missing cards and WAIT never do. The first such poll is HOLDING; a
+        partly read pair proves nothing either way and leaves the binding as it was;
+      * after a notice (DORMANT) cards coming back with an overlapping or partly read pair are the same hand returning and
+        the decision governs again; a fully different pair is HOLDING and then released like any other;
+      * a newly issued pre-round decision replaces the binding (`bind`), and the window drops it when tracking starts or stops.
+    `dismissed` is the person's click on the banner while it showed the bound decision: it is not shown again for this hand,
+    but it still blocks every other decision.
+    """
+
+    def __init__(self, confirm_frames=2):
+        self.confirm_frames = max(1, int(confirm_frames))
+        self.clear()
+
+    def clear(self):
+        self.action = self.reason = None
+        self.governing = False       # True when the bound decision applies to the update last observed
+        self.holding = False         # True on a poll that read a different pair which is not yet confirmed
+        self.dormant = False         # True after a result notice for the bound hand, until its cards come back
+        self.dismissed = False       # the person dismissed the bound decision from the banner
+        self._prior = None           # the finished round the decision was made from
+        self._hand = None            # the round id of the bound hand once its cards are on the table
+        self._pair = None            # its two player cards, once both have been read
+        self._streak = 0             # consecutive polls on which the player's pair read as a different one
+
+    def bind(self, action, reason, lifecycle):
+        """Hold `action` for the hand about to be dealt (the one after the finished round `lifecycle` reports)."""
+        self.clear()
+        self.action, self.reason = action, reason
+        self._prior = ((lifecycle or {}).get("previous") or {}).get("round_id")
+
+    def notice(self):
+        """A RESULT PENDING / UNKNOWN notice was issued for the bound hand: it stops asserting until its cards return."""
+        if self.action is not None and self._hand is not None:
+            self.dormant = True
+
+    def dismiss(self):
+        if self.action is not None:
+            self.dismissed = True
+
+    def observe(self, lifecycle, cards=None):
+        """Fold in one update (its lifecycle and confirmed cards). Returns True when the bound decision governs it."""
+        self.governing = self.holding = False
+        if self.action is None or not lifecycle:
+            return False
+        rid, state = lifecycle.get("round_id"), lifecycle.get("state")
+        if state == WAITING:
+            self._streak = 0
+            if self._hand is None:
+                self.governing = True                       # PREDEAL: the hand it was issued for is not on the table yet
+            elif not self.dormant:
+                previous = lifecycle.get("previous") or {}
+                self.governing = previous.get("round_id") == self._hand
+            return self.governing
+        pair = ((cards or {}).get("player_1"), (cards or {}).get("player_2"))
+        pair = pair if all(pair) else None
+        if self._hand is None:
+            if rid == self._prior:
+                return False
+            self._hand, self._pair = rid, pair
+        elif rid == self._hand and not self.dormant:
+            self._streak = 0
+            self._pair = pair or self._pair
+        elif pair is None or self._pair is None:
+            self._streak = 0                                # not enough read to say anything: the binding stands
+            self.dormant = False
+        elif set(pair) & set(self._pair):
+            self._hand, self._pair, self._streak = rid, pair, 0     # the same hand, re-read after a clear or a notice
+            self.dormant = False
+        else:
+            self._streak += 1
+            if self._streak >= self.confirm_frames:
+                self.clear()                                # a new deal
+                return False
+            self.holding = True                             # a different pair, not yet confirmed: publish nothing
+            return False
+        self.governing = True
+        return True
+
+
+def result_note(lifecycle):
+    """What to say about the bound hand's result beside its decision: empty until the hand is complete.
+
+    Read from the hand's own lifecycle, or from `previous` once the table has cleared. The wording is `present`'s.
+    """
+    life = lifecycle or {}
+    if life.get("state") == WAITING:
+        life = life.get("previous") or {}
+    if life.get("state") != COMPLETE:
+        return ""
+    status = life.get("result_status")
+    if status == RESULT_CONFLICT:
+        return "Unable to determine result: the table and the casino's result panel disagree"
+    if status != RESULT_CONFIRMED:
+        return "Round complete - result not yet confirmed by the casino's result panel"
+    return "Round complete, %s (confirmed by the result panel)" % result_text(life.get("result"))
+
+
 def annotate(scenario, lifecycle):
     """`scenario` for the SCENARIO panel, carrying how its decision is presented at this point in the round.
 

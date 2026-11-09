@@ -147,6 +147,11 @@ class App:
         # The last decision the voice actually said. Not the same thing as the
         # one on the banner: see _announce_decision.
         self._spoken_decision = None
+        # A pre-round SKIP, held to the hand it was issued for: see
+        # round_lifecycle.HandBinding and _show_engine_decision.
+        # The new-deal confirmation is the card memory's own (tracker.py).
+        self._hand_binding = round_lifecycle.HandBinding(
+            confirm_frames=self.config.get("change_confirm_frames", 2))
 
         # The voice. Announces what the tracker has already decided, on its own
         # thread, and is fed from this window's event loop rather than from the
@@ -223,7 +228,7 @@ class App:
             self.decision_banner = AnteAlertBanner(
                 root, sound=bool(self.config.get("ante_alert_sound", True)))
             self.ante_banner = self.decision_banner
-            self.decision_banner.on_dismiss = self.ante_alert.dismiss
+            self.decision_banner.on_dismiss = self._dismiss_handler()
         self._poll_events()
         self._startup_checks()
         self._refresh_statistics()
@@ -860,6 +865,7 @@ class App:
         self.latest_payload = None
         self._payload_stale = False
         self._spoken_decision = None
+        self._hand_binding.clear()
         self.tracking = True
         self._tracker_seen_running = False
         if self.ante_alert is not None:
@@ -921,6 +927,7 @@ class App:
         # - and after a restart, spoken about the new session.
         self.announcer.stop()
         self._spoken_decision = None
+        self._hand_binding.clear()
         self.set_status("STOPPED")
         self.start_button.config(state="normal")
         self.stop_button.config(state="disabled")
@@ -1421,7 +1428,39 @@ class App:
         """
         if self.decision_banner is None or not self.tracker.is_running():
             return
+        if self._hand_binding.holding:
+            # A different player pair has been read but not yet confirmed as a
+            # new deal: the old hand's decision must not be shown or spoken for
+            # this one, and neither may the engine's, which would be a decision
+            # for a hand the binding has not released yet. Before the alert
+            # check on purpose: the alert hides its notice from the raw frame,
+            # which can lag the confirmed cards. reset() empties what the banner
+            # remembers as well as what it shows, so the next decision - the
+            # engine's on release, or the bound one if the pair reverts - is a
+            # change whatever the banner was last showing.
+            self.decision_banner.reset()
+            return
         if self.ante_alert is not None and self.ante_alert.showing:
+            return
+        if self._hand_binding.governing:
+            # The pre-round SKIP is binding for the whole hand it was issued
+            # for, through its result: whatever the engine says meanwhile -
+            # WAIT, a provisional PLAY, the final PLAY - is not shown or spoken
+            # over it. The result still reaches the screen, in the reason line.
+            # Same path as every other decision, so the banner and the voice
+            # are handed the one value; a repeat is dropped by both as usual.
+            if self._hand_binding.dismissed:
+                # Dismissed by the person: not shown again for this hand, and
+                # nothing left over from before (a result notice the alert's
+                # hide did not take down) stays up in its place.
+                self.decision_banner.reset()
+                return
+            reason = self._hand_binding.reason or ""
+            note = round_lifecycle.result_note(payload.get("lifecycle"))
+            if note:
+                reason = "%s - %s" % (reason, note) if reason else note
+            self._publish_decision(self._hand_binding.action, reason,
+                                   payload.get("round_id"))
             return
         scenario = payload.get("scenario") or {}
         # PLAY / DON'T PLAY are provisional while the round is in progress and
@@ -1498,8 +1537,47 @@ class App:
             lambda: self._preround_for(payload),
             ready=lambda: self._preround_ready(payload),
             key=self._preround_key(payload))
+        self._bind_preround(event, payload.get("lifecycle"), payload.get("cards"))
         self._apply_ante_event(event)
         self._show_engine_decision(payload)
+
+    def _bind_preround(self, event, lifecycle, cards=None):
+        """Hold a pre-round SKIP to the hand it was issued for, and follow that hand.
+
+        Only a real ANTE / SKIP decision binds (or, for ANTE, releases the
+        previous hand's SKIP). A PENDING / UNKNOWN notice is about the finished
+        round: it neither binds nor releases, it makes the binding dormant
+        until that hand's cards come back. See HandBinding.
+        """
+        if event and event[0] == SHOW and event[1] in (scenario_rules.ANTE,
+                                                       scenario_rules.SKIP):
+            if event[1] == scenario_rules.SKIP:
+                self._hand_binding.bind(event[1], event[2], lifecycle)
+            else:
+                self._hand_binding.clear()
+        elif event and event[0] == SHOW and event[1] in (
+                round_lifecycle.RESULT_PENDING_KEY, round_lifecycle.RESULT_UNKNOWN_KEY):
+            # A status about the bound hand's result, shown by the alert in
+            # place of its decision (the binding stands aside: DORMANT). Before the
+            # binding looks at this update, so the notice is drawn with it already
+            # standing aside.
+            self._hand_binding.notice()
+        self._hand_binding.observe(lifecycle, cards)
+
+    def _dismiss_handler(self):
+        """What a click on the banner does: dismiss the alert, and a bound decision that was on the banner.
+
+        A closure over the three objects it needs and not a method of the window: the banner holds this function, and one
+        that reached back to the window would make window and banner a reference cycle, which moves when the garbage
+        collector gets to the window's Tk variables - and it sometimes does that on the voice thread, which stalls it.
+        """
+        binding, shown, alert = self._hand_binding, self.decision_banner.current, self.ante_alert
+
+        def dismissed():
+            if binding.action is not None and shown.decision == binding.action:
+                binding.dismiss()
+            return alert.dismiss()
+        return dismissed
 
     def _apply_ante_event(self, event):
         if not event or self.ante_banner is None:
@@ -1508,7 +1586,9 @@ class App:
             self._publish_decision(
                 event[1], event[2],
                 (self.latest_payload or {}).get("round_id"))
-        else:
+        elif not self._hand_binding.governing:
+            # (Not while the binding governs: neither the bound hand's own deal
+            # nor the alert's timeout before it takes the bound SKIP down.)
             self.ante_banner.hide()
 
     def _publish_decision(self, decision, reason="", round_id=None, chime=True,
