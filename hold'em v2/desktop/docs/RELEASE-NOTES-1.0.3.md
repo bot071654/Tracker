@@ -54,22 +54,28 @@ before you use the application.
 
 Installation
 1. Download `PokerHandTracker-Setup.exe`.
-2. Verify its SHA-256 against `SHA256SUMS.txt`: `<to be filled in when the installer is built>`
+2. Verify its SHA-256 against `SHA256SUMS.txt`: `99070F91CAC044ECD386154A82C7FC245BA9C2820FE47DBF30D8774D87B6B639`
 3. Run the installer and follow `INSTALL-WINDOWS.md`. Installing over 1.0.2 or 1.0.1 keeps your settings and sign-in.
 
 Build
-- Version 1.0.3, build `<to be filled in>`, built from commit `<to be filled in>` on `release/windows-1.0.0`.
-- Installer size: `<to be filled in>`.
+- Version 1.0.3, build `202611090517`, built from commit `7794281` on `release/windows-1.0.0`.
+- Installer size: 52,283,776 bytes.
 
 Release status
 - Windows x64 installer. The installer is unsigned, so Windows may display a security warning.
 - Clean Windows machine validation is still pending (checks so far ran on a development machine that has Python).
 - A complete TLS handshake with the production API was not part of these tests; HTTPS address handling was tested with a local
   logging proxy and a throwaway local backend.
-- The packaged application's headless self-test was run on the build folder before packaging, not on the installed copy. Live play
-  has not yet been tested with this version.
-- 179 automated tests that need saved whole-screen casino frames were not run against this code; they are skipped when those frames
-  are absent.
+- Tests run on this source before packaging (development machine, scratch data folder, no network): the complete suite, 2,395 passed,
+  0 failed, 191 skipped (180 that need saved whole-screen casino frames, which are deliberately not part of the repository; 7 that need
+  a PostgreSQL server; 3 that need a Tk display and skipped when Tk would not start; 1 for a missing samples folder). The build's own
+  step ran 112 tests (all passed), and the packaged application's 10 headless self-test checks all passed on the build folder.
+- The 51 hand-binding tests passed in 16 of the 17 complete runs we made. One run failed once (`test_notice_to_confirmed_different_pair`,
+  row R7) and showed twelve Tk "main thread is not in main loop" warnings; it did not recur in more than 20 reruns, including under
+  heavy CPU load and with the garbage collector stressed. The cause is not established. It is probably the test window's Tk
+  variables being cleaned up on another thread, but that is a guess.
+- The installer has not been installed and run on a completely fresh Windows machine, and the same-hand SKIP behavior has not been
+  verified on a live table: the tests drive the real window, banner and voice with the tracker's own update structures, not a casino.
 - Saving a finished hand on a background worker (added in 1.0.2) has not yet been exercised in a live session with the real database
   and Excel export.
 - The reading of black suits on the result panel (spade or club) rests on limited evidence: only two real club thumbnails were
